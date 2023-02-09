@@ -1,6 +1,6 @@
 
 import { Input } from "./input"
-import { Group, is_pack, Lexer, Merger, Pack, Token, Tokenizer, Wrapper } from "./tokenizer"
+import { Group, IFWrapper, is_pack, Lexer, Merger, Pack, Token, Tokenizer, Wrapper } from "./tokenizer"
 
 class DepthDebug {
     depth: number = 0
@@ -39,8 +39,8 @@ class DepthDebug {
     }
 
     pop(...arg: any) {
-        this.log(...arg)
         this.depth -= 1
+        this.log(...arg)
     }
 }
 
@@ -79,6 +79,8 @@ export abstract class LexerBase implements Lexer {
 
     tokens: Token<any>[] = []
 
+    disable_debugger = true
+
     constructor(public source: Input, stack: Tokenizer<string, any>[]) {
         this.stack = stack
         while (!this.source.eof()) {
@@ -93,8 +95,7 @@ export abstract class LexerBase implements Lexer {
                             this.queue.unshift(tnz.options.tokenizer)
                         }
                     }
-                }
-                if (is_pack(tnz)) {
+                } else if (is_pack(tnz)) {
                     const result = this.read(tnz)
                     if (result) {
                         if (result.state) {
@@ -104,11 +105,15 @@ export abstract class LexerBase implements Lexer {
                     }
                 }
             }
-            source.wreak_havoc()
+            source.wreak_havoc({
+                err: new Error(`No viable alternative.\n${this.source.pan([-100,1], true)}<- no lexer`)
+            })
         }
     }
 
     private strip(tnz: Tokenizer<any, any>) {
+        if (this.disable_debugger) return;
+
         const depth: string[] = []
         const stack: Tokenizer<any, any>[] = [tnz]
         while (stack.length > 0) {
@@ -141,8 +146,9 @@ export abstract class LexerBase implements Lexer {
         this.add_merger(tokens, clone)
         stack.push(clone)
 
+        const debug = new DepthDebug(this.disable_debugger)
+
         this.source.push()
-        const debug = new DepthDebug(true)
         while (stack.children.length > 0) {
             const tnz = stack.last()
             debug.log(tnz.name)
@@ -172,15 +178,15 @@ export abstract class LexerBase implements Lexer {
                 if (tnz.type == "Wrapper") {
                     const wrapper = tnz as Wrapper
                     debug.log("@start - Wrapper", this.strip(wrapper))
-                    debug.lpp("tokens", tokens.map(a => a.raw))
-                    debug.lpp("stack", stack.children.map(a => a.name), wrapper.index)
+                    //debug.lpp("tokens", tokens.map(a => a.raw))
+                    //debug.lpp("stack", stack.children.map(a => a.name), wrapper.index)
                     debug.push()
                     wrapper.update()
                     for (; !wrapper.ended; wrapper.next()) {
                         const child = wrapper.get()
                         debug.log(child.name, '- type', child.type)
                         if (child.type == "Reader") {
-                            debug.lpp("test", child.test(this))
+                            //debug.lpp("test", child.test(this))
                             if (child.test(this)) {
                                 const result = child.read(this)
                                 wrapper.status = "succeed"
@@ -261,18 +267,120 @@ export abstract class LexerBase implements Lexer {
                     debug.pop()
                 }
 
+                if (tnz.type == "IFWrapper") {
+                    if (tnz.test(this)) {
+                        const ifwrapper = tnz as IFWrapper
+                        debug.log("@start - IFWrapper", this.strip(ifwrapper))
+                        //debug.lpp("tokens", tokens.map(a => a.raw))
+                        //debug.lpp("stack", stack.children.map(a => a.name), ifwrapper.index)
+                        debug.push()
+                        ifwrapper.update()
+                        for (; !ifwrapper.ended; ifwrapper.next()) {
+                            const child = ifwrapper.get()
+                            debug.log(child.name, '- type', child.type)
+                            if (child.type == "Reader") {
+                                //debug.lpp("test", child.test(this))
+                                if (child.test(this)) {
+                                    const result = child.read(this)
+                                    ifwrapper.status = "succeed"
+                                    if (!child.options.ignore) {
+                                        tokens.push(result)
+                                    }
+                                    if (child.options.mode == 'push') {
+                                        const clone = child.options.tokenizer.clone()
+                                        clone.parent = ifwrapper
+                                        stack.push(clone);
+                                        this.add_merger(tokens, clone)
+                                        debug.push("push", clone.name)
+                                        push_stack++
+                                        break
+                                    }
+                                    if (child.options.mode == 'pop') {
+                                        if (ifwrapper.parent) {
+                                            if (is_pack(ifwrapper.parent)) {
+                                                const parent = ifwrapper.parent as Pack
+                                                parent.status = ifwrapper.status
+                                                parent.next()
+                                            }
+                                        }
+                                        stack.pop();
+                                        debug.pop('@pop - IFWrapper', this.strip(ifwrapper))
+                                        if (push_stack - 1 < 0) {
+                                            throw new Error(`No stack to pop ${this.strip(child)}`)
+                                        }
+                                        push_stack--
+                                        break
+                                    }
+                                } else if (child.options.nullable == false && ifwrapper.options.nullable == false) {
+                                    if (ifwrapper.status == "succeed") {
+                                        throw new Error(`No viable alternative.\n${this.source.pan([-100, 1], true)}<- is not ${child.name}`)
+                                    }
+                                    if (ifwrapper.parent) {
+                                        const parent = ifwrapper.parent as Pack
+                                        parent.status = "fail"
+                                        parent.next()
+                                        stack.pop()
+                                        debug.pop('@pop - IFWrapper', this.strip(ifwrapper))
+                                        break
+                                    } else {
+                                        debug.pop('@end - IFWrapper', this.strip(ifwrapper))
+                                        this.source.pop()
+                                        return false
+                                    }
+                                } else if (ifwrapper.options.nullable == true) {
+                                    ifwrapper.status = "succeed"
+                                    if (ifwrapper.parent) {
+                                        const parent = ifwrapper.parent as Pack
+                                        parent.status = "succeed"
+                                    }
+                                    stack.pop();
+                                    debug.pop('@end - IFWrapper', this.strip(ifwrapper))
+                                    break
+                                }
+                            }
+                            if (is_pack(child)) {
+                                const clone = child.clone()
+                                clone.parent = ifwrapper
+                                stack.push(clone);
+                                this.add_merger(tokens, clone)
+                                debug.push("push", child.name)
+                                break
+                            }
+                        }
+                        if (ifwrapper.ended) {
+                            if (ifwrapper.parent) {
+                                if (is_pack(ifwrapper.parent)) {
+                                    const parent = ifwrapper.parent as Pack
+                                    parent.ended = true
+                                }
+                            }
+                            stack.pop()
+                            debug.pop('@end - IFWrapper', this.strip(ifwrapper))
+                        }
+                        debug.pop()
+                    } else {
+                        if (tnz.parent) {
+                            if (is_pack(tnz.parent)) {
+                                const parent = tnz.parent as Pack
+                                parent.next()
+                            }
+                        }
+                        stack.pop()
+                    }
+                }
+
                 if (tnz.type == "Group") {
                     const group = tnz as Group
                     debug.log("@start - Group", this.strip(group))
-                    debug.lpp("tokens", tokens.map(a => a.raw))
-                    debug.lpp("stack", stack.children.map(a => a.name), group.index)
+                    //debug.lpp("tokens", tokens.map(a => a.raw))
+                    //debug.lpp("stack", stack.children.map(a => a.name), group.index)
                     debug.push()
                     group.update()
                     for (; !group.ended; group.next()) {
                         const child = group.get()
                         debug.log(child.name, '- type', child.type)
                         if (child.type == "Reader") {
-                            debug.lpp("test", child.test(this))
+                            //debug.lpp("test", child.test(this))
                             if (child.test(this)) {
                                 const result = child.read(this)
                                 group.status = "succeed"
@@ -341,15 +449,15 @@ export abstract class LexerBase implements Lexer {
                 if (tnz.type == "GroupSerial") {
                     const group = tnz as Group
                     debug.log("@start - GroupSerial", this.strip(group))
-                    debug.lpp("tokens", tokens.map(a => a.raw))
-                    debug.lpp("stack", stack.children.map(a => a.name), group.index)
+                    //debug.lpp("tokens", tokens.map(a => a.raw))
+                    //debug.lpp("stack", stack.children.map(a => a.name), group.index)
                     debug.push()
                     group.update()
                     for (; !group.ended; group.next()) {
                         const child = group.get()
                         debug.log(child.name, '- type', child.type)
                         if (child.type == "Reader") {
-                            debug.lpp("test", child.test(this))
+                            //debug.lpp("test", child.test(this))
                             if (child.test(this)) {
                                 const result = child.read(this)
                                 group.status = "succeed"

@@ -316,7 +316,7 @@ export class Group extends Pack {
 
     add(children: Tokenizer<string, any>[]) {
         super.add(
-            // sorted array to increased performance
+            // sorted array to increase performance
             children.sort((a: any, b: any) => {
                 if (a.type == "Reader" && b.type == "Reader") {
                     return 0
