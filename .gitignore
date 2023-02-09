@@ -1,0 +1,7 @@
+/.mcb_module
+/node_modules
+/yarn-error.log
+/yarn.lock
+.fake
+src/wow
+dist
