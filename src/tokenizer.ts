@@ -90,7 +90,7 @@ export interface Tokenizer<A, B> {
 
 export interface Lexer {
     queue: Tokenizer<string, any>[]
-    stack: Tokenizer<string, any>[]
+    scheme: Tokenizer<string, any>[]
     tokens: Token<any>[]
     source: Input
 }

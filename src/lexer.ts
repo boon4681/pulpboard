@@ -21,8 +21,10 @@ class DepthDebug {
             console.log(...u)
         } else if (this.depth == 1) {
             console.log(' ', ...u)
-        } else {
+            // console.log('1|',...u)
+        } else if(this.depth > 0) {
             console.log(new Array(this.depth).fill("").join("    "), ...u)
+            // console.log(this.depth+'|', ...u)
         }
     }
 
@@ -75,16 +77,19 @@ class Stacker {
 export abstract class LexerBase implements Lexer {
 
     queue: Tokenizer<string, any>[] = []
-    stack: Tokenizer<string, any>[] = []
+    scheme: Tokenizer<string, any>[] = []
 
     tokens: Token<any>[] = []
 
     disable_debugger = true
 
-    constructor(public source: Input, stack: Tokenizer<string, any>[]) {
-        this.stack = stack
+    constructor(public source: Input, scheme: Tokenizer<string, any>[]) {
+        this.scheme = scheme
+    }
+
+    run() {
         while (!this.source.eof()) {
-            for (const tnz of this.stack) {
+            for (const tnz of this.scheme) {
                 if (tnz.type == "Reader") {
                     if (tnz.test(this)) {
                         const result = tnz.read(this)
@@ -99,14 +104,14 @@ export abstract class LexerBase implements Lexer {
                     const result = this.read(tnz)
                     if (result) {
                         if (result.state) {
-                            source.set(result.state)
+                            this.source.set(result.state)
                         }
                         this.tokens.push(...result.tokens)
                     }
                 }
             }
-            source.wreak_havoc({
-                err: new Error(`No viable alternative.\n${this.source.pan([-100,1], true)}<- no lexer`)
+            this.source.wreak_havoc({
+                err: new Error(`No viable alternative.\n${this.source.pan([-100, 1], true)}<- no lexer`)
             })
         }
     }
@@ -137,7 +142,7 @@ export abstract class LexerBase implements Lexer {
         }
     }
 
-    read(tnz: Tokenizer<string, any>) {
+    private read(tnz: Tokenizer<string, any>) {
         const stack: Stacker = new Stacker()
         let push_stack: number = 0
         const tokens: Token<any>[] = []
@@ -535,6 +540,7 @@ export abstract class LexerBase implements Lexer {
 
             stack.wreak_havoc()
         }
+        debug.log('@end')
         return { tokens, state: this.source.pop() };
     }
 }
