@@ -5,6 +5,7 @@ import { Stacker } from "../stacker"
 
 export function ifwrapper(lexer: Lexer, tokens: Token<any>[], stack: Stacker, debug: DepthDebug, tnz: IFWrapper) {
     const ifwrapper = tnz as IFWrapper
+    debug.log('@start -', ifwrapper.type, ifwrapper.name)
     if (ifwrapper.test(lexer)) {
         ifwrapper.update()
         for (; !ifwrapper.ended; ifwrapper.next()) {
@@ -31,7 +32,7 @@ export function ifwrapper(lexer: Lexer, tokens: Token<any>[], stack: Stacker, de
                                 parent.next()
                             }
                         }
-                        stack.pop();
+                        stack.pop('@pop -', ifwrapper.type, ifwrapper.name);
                         break
                     }
                 } else if (child.options.nullable == false && ifwrapper.options.nullable == false) {
@@ -42,7 +43,7 @@ export function ifwrapper(lexer: Lexer, tokens: Token<any>[], stack: Stacker, de
                         const parent = ifwrapper.parent as Pack
                         parent.status = "fail"
                         parent.next()
-                        stack.pop()
+                        stack.pop('@pop -', ifwrapper.type, ifwrapper.name)
                         break
                     } else {
                         lexer.source.pop()
@@ -54,7 +55,7 @@ export function ifwrapper(lexer: Lexer, tokens: Token<any>[], stack: Stacker, de
                         const parent = ifwrapper.parent as Pack
                         parent.status = "succeed"
                     }
-                    stack.pop();
+                    stack.pop('@pop -', ifwrapper.type, ifwrapper.name);
                     break
                 }
             }
@@ -73,7 +74,7 @@ export function ifwrapper(lexer: Lexer, tokens: Token<any>[], stack: Stacker, de
                     parent.ended = true
                 }
             }
-            stack.pop()
+            stack.pop('@pop -', ifwrapper.type, ifwrapper.name)
         }
     } else {
         if (ifwrapper.parent) {
@@ -86,6 +87,6 @@ export function ifwrapper(lexer: Lexer, tokens: Token<any>[], stack: Stacker, de
                 parent.next()
             }
         }
-        stack.pop()
+        stack.pop('@pop -', ifwrapper.type, ifwrapper.name)
     }
 }

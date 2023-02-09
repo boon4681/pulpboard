@@ -7,8 +7,8 @@ import { reader } from "./base/reader"
 import { Stacker } from "./stacker"
 import { wrapper } from "./base/wrapper"
 import { wrapper_serial } from "./base/wrapper_serial"
-import { group } from "console"
 import { group_serial } from "./base/group_serial"
+import { group } from "./base/group"
 
 export abstract class LexerBase implements Lexer {
 
@@ -23,6 +23,7 @@ export abstract class LexerBase implements Lexer {
         this.scheme = scheme
     }
 
+    update = 0
     run() {
         while (!this.source.eof()) {
             for (const tnz of this.scheme) {
@@ -50,6 +51,7 @@ export abstract class LexerBase implements Lexer {
                 err: new Error(`No viable alternative.\n${this.source.pan([-100, 1], true)}<- no lexer`)
             })
         }
+        // console.log(this.update,this.source.size)
     }
 
     private add_merger(tokens: Token<any>[], tnz: Tokenizer<string, any>) {
@@ -127,6 +129,7 @@ export abstract class LexerBase implements Lexer {
 
             stack.wreak_havoc(this)
         }
+        this.update += stack.step
         return { tokens, state: this.source.pop() };
     }
 }

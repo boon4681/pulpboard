@@ -4,6 +4,7 @@ import { Stacker } from "../stacker";
 
 
 export function reader(lexer: Lexer, tokens: Token<any>[], stack: Stacker,debug: DepthDebug, tnz: Reader) {
+    debug.log('@read -', tnz.type, tnz.name)
     if (tnz.test(lexer)) {
         const result = tnz.read(lexer)
         if (!tnz.options.ignore) {

@@ -6,9 +6,16 @@ import { Stacker } from "../stacker"
 export function group(lexer: Lexer, tokens: Token<any>[], stack: Stacker, debug: DepthDebug, tnz: Group) {
     const group = tnz as Group
     group.update()
+    debug.log('@start -', group.type, group.name)
+    if (group.status == "succeed") {
+        group.ended = true
+    }
+    // debug.log(tokens.map(a=>a.raw))
     for (; !group.ended; group.next()) {
         const child = group.get()
+        debug.log(child.name)
         if (child.type == "Reader") {
+            debug.lpp(child.test(lexer))
             if (child.test(lexer)) {
                 const result = child.read(lexer)
                 group.status = "succeed"
@@ -31,13 +38,9 @@ export function group(lexer: Lexer, tokens: Token<any>[], stack: Stacker, debug:
                             parent.next()
                         }
                     }
-                    stack.pop();
+                    stack.pop('@pop -', group.type, group.name);
                     break
                 }
-                break
-            } else if (child.options.nullable) {
-                group.status = "succeed"
-                group.ended = true
                 break
             }
         }
@@ -51,7 +54,7 @@ export function group(lexer: Lexer, tokens: Token<any>[], stack: Stacker, debug:
         }
         group.status = "fail"
     }
-    if (group.status == "fail" && group.options.nullable == false) {
+    if (group.status == "fail" && group.options.nullable == false && !group.parent) {
         if (stack.step > stack.children.length * 0.7) {
             throw new Error(`No viable alternative.\n${lexer.source.pan([-100, 1], true)}<- is not ${group.name}`)
         }
@@ -66,6 +69,6 @@ export function group(lexer: Lexer, tokens: Token<any>[], stack: Stacker, debug:
                 parent.next()
             }
         }
-        stack.pop()
+        stack.pop('@pop -', group.type, group.name)
     }
 }

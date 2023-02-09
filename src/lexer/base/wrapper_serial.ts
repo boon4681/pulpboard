@@ -7,6 +7,7 @@ export function wrapper_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacke
     const wrapper = tnz as WrapperSerial
     wrapper.update()
     debug.log('@start -', wrapper.type, wrapper.name)
+    // debug.log(tokens.map(a=>a.raw))
     for (; !wrapper.ended; wrapper.next()) {
         const child = wrapper.get()
         if (child.type == "Reader") {

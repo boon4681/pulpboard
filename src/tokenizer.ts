@@ -186,6 +186,12 @@ export class Reader extends TnzBase<string, string> {
         }
         return a
     }
+
+    fragment(name: string) {
+        let f = this.clone()
+        f.name = name
+        return f
+    }
 }
 
 export class Merger {

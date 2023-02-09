@@ -7,6 +7,7 @@ import { Stacker } from "../stacker"
 export function group_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacker, debug: DepthDebug, tnz: GroupSerial) {
     const group = tnz as GroupSerial
     group.update()
+    debug.log('@start -', group.type, group.name)
     if (group.status == "succeed") {
         group.ended = true
     }
@@ -35,7 +36,7 @@ export function group_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacker,
                             parent.next()
                         }
                     }
-                    stack.pop();
+                    stack.pop('@pop -', group.type, group.name);
                     break
                 }
                 break
@@ -50,7 +51,7 @@ export function group_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacker,
         }
         group.status = "fail"
     }
-    if (group.status == "fail" && group.options.nullable == false) {
+    if (group.status == "fail" && group.options.nullable == false && group.parent?.type !== "GroupSerial") {
         if (stack.step > stack.children.length * 0.7) {
             throw new Error(`No viable alternative.\n${lexer.source.pan([-100, 1], true)}<- is not ${group.name}`)
         }
@@ -75,7 +76,7 @@ export function group_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacker,
             stack.push(clone);
             (lexer as any).add_merger(tokens, clone)
         } else {
-            stack.pop()
+            stack.pop('@pop -', group.type, group.name)
         }
     }
 }
