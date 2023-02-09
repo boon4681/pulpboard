@@ -152,7 +152,7 @@ export class Input {
             value[1] = range[1]
         }
         if (clamp) {
-            return this.source.slice(this.clamp(value[0]), this.clamp(value[1]))
+            return this.source.slice(this.clamp(value[0]), this.clamp(value[1])).replace(/\r/g,'')
         }
         this.validate_move(value[0])
         this.validate_move(value[1])

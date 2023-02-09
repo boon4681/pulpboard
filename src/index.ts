@@ -1,5 +1,5 @@
 import { Input } from './input'
-import { Tokenizer, Wrapper, Reader, GroupSerial, Lexer, Group,IFWrapper } from './tokenizer'
+import { Tokenizer, Wrapper, Reader, GroupSerial, Lexer, Group, IFWrapper, WrapperSerial } from './tokenizer'
 import { LexerBase } from './lexer'
 
 export {
@@ -7,7 +7,7 @@ export {
     Tokenizer,
     Wrapper,
     IFWrapper,
-    // WrapperSerial,
+    WrapperSerial,
     Group,
     GroupSerial,
     Reader,

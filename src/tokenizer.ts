@@ -84,7 +84,7 @@ export interface Tokenizer<A, B> {
 
     test(lexer: Lexer): boolean
     read(lexer: Lexer): Token<A>
-    set(A: TnzOptions): Tokenizer<A, B>
+    set(options: TnzOptions): Tokenizer<A, B>
     clone(options?: TnzOptions): Tokenizer<A, B>
 }
 
@@ -196,6 +196,7 @@ export class Merger {
 
     merge(tokens: Token<any>[]) {
         const removed = tokens.splice(this.start_index)
+        if (removed.length == 0) return;
         const raw = removed.map(a => a.raw).join('')
         tokens.push(
             new Token<string>(this.name, raw, raw, {
@@ -266,6 +267,11 @@ export abstract class Pack extends TnzBase<string, string>{
     protected clone_attr(tnz: Pack) {
         tnz.merging = this.merging
     }
+
+    del() {
+        const u = Object.assign(Object.assign({}, this), { children: undefined, last_child: undefined, parent: undefined })
+        return u
+    }
 }
 
 export class Wrapper extends Pack {
@@ -273,6 +279,24 @@ export class Wrapper extends Pack {
 
     clone(options?: TnzOptions) {
         let a = new Wrapper(this.name)
+        a.add(this.children)
+        if (options) {
+            a.options = options
+        } else {
+            a.options = this.options
+        }
+        this.clone_attr(a)
+        return a
+    }
+}
+
+export class WrapperSerial extends Pack {
+    readonly type: TnzType = "WrapperSerial"
+
+    self_end: boolean = false
+
+    clone(options?: TnzOptions) {
+        let a = new WrapperSerial(this.name)
         a.add(this.children)
         if (options) {
             a.options = options
@@ -307,7 +331,15 @@ export class IFWrapper extends Pack {
             a.options = this.options
         }
         this.clone_attr(a)
+        a.stop(this.stop_reading)
         return a
+    }
+
+    stop_reading = false
+
+    stop(stop: boolean) {
+        this.stop_reading = stop
+        return this
     }
 }
 
@@ -348,6 +380,8 @@ export class Group extends Pack {
 
 export class GroupSerial extends Group {
     readonly type: TnzType = "GroupSerial"
+
+    self_end: boolean = false
 
     clone(options?: TnzOptions) {
         let a = new GroupSerial(this.name)
