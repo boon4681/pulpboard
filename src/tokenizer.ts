@@ -259,7 +259,9 @@ export abstract class Pack extends TnzBase<string, string>{
         if (o) {
             throw new Error('Cannot add tokenizer type:Unassign to stack')
         }
-        this.children.push(...children)
+        for (let i = 0; i < children.length; i++) {
+            this.children.push(children[i])
+        }
         this.last_child = this.children[this.children.length - 1]
         if (!this.nullable_pop) this.nullable_pop = children.find(a => a.options.nullable && a.options.mode == 'pop') != undefined
         return this

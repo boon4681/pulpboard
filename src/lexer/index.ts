@@ -43,7 +43,9 @@ export abstract class LexerBase implements Lexer {
                         if (result.state) {
                             this.source.set(result.state)
                         }
-                        this.tokens.push(...result.tokens)
+                        for (let i = 0; i < result.tokens.length; i++) {
+                            this.tokens.push(result.tokens[i])
+                        }
                     }
                 }
             }
