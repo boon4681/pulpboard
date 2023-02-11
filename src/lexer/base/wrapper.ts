@@ -54,6 +54,7 @@ export function wrapper(lexer: Lexer, tokens: Token<any>[], stack: Stacker, debu
                 if (wrapper.parent) {
                     const parent = wrapper.parent as Pack
                     parent.status = "succeed"
+                    parent.next()
                 }
                 stack.pop('@pop -', wrapper.type, wrapper.name);
                 break
