@@ -261,7 +261,7 @@ export abstract class Pack extends TnzBase<string, string>{
         }
         this.children.push(...children)
         this.last_child = this.children[this.children.length - 1]
-        if (!this.nullable_pop) this.nullable_pop = children.find(a => a.options.nullable == true && a.options.mode == 'pop') != undefined
+        if (!this.nullable_pop) this.nullable_pop = children.find(a => a.options.nullable && a.options.mode == 'pop') != undefined
         return this
     }
 
