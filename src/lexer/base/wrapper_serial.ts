@@ -14,6 +14,9 @@ export function wrapper_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacke
             if (child.test(lexer)) {
                 const result = child.read(lexer)
                 wrapper.status = "succeed"
+                lexer.source.wreak_havoc({
+                    err: new Error(`${lexer.source.pan([-100, 0], true)}<- Zero size token leaded to endless loop "${wrapper.name} > ${child.name}"`)
+                })
                 if (!child.options.ignore) {
                     tokens.push(result)
                 }

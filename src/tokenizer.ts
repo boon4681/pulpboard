@@ -93,6 +93,7 @@ export interface Lexer {
     scheme: Tokenizer<string, any>[]
     tokens: Token<any>[]
     source: Input
+    index: number
 }
 
 abstract class TnzBase<A, B> implements Tokenizer<A, B> {
@@ -146,6 +147,24 @@ export class Reader extends TnzBase<string, string> {
 
     match(lexer: Lexer) {
         return this.test(lexer) && this.regex.exec(lexer.source.to_end())
+    }
+
+    private strip(tnz: Tokenizer<any, any>) {
+        const depth: string[] = []
+        const stack: Tokenizer<any, any>[] = [tnz]
+        while (stack.length > 0) {
+            const i = stack.pop()
+            if (i) {
+                depth.push(i.name)
+                if (i.parent) {
+                    stack.push(i.parent)
+                }
+            }
+        }
+        if (depth.length > 5) {
+            return '...' + depth.reverse().slice(depth.length - 5).join(" > ")
+        }
+        return depth.reverse().join(" > ")
     }
 
     read(lexer: Lexer): Token<string> {

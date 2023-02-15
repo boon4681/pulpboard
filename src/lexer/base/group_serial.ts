@@ -18,6 +18,9 @@ export function group_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacker,
                 const result = child.read(lexer)
                 group.status = "succeed"
                 group.ended = true
+                lexer.source.wreak_havoc({
+                    err: new Error(`${lexer.source.pan([-100, 0], true)}<- Zero size token leaded to endless loop "${group.name} > ${child.name}"`)
+                })
                 if (!child.options.ignore) {
                     tokens.push(result)
                 }

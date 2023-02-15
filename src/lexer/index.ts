@@ -18,12 +18,13 @@ export abstract class LexerBase implements Lexer {
     tokens: Token<any>[] = []
 
     disable_debugger = true
+    update = 0
+    index = 0
 
     constructor(public source: Input, scheme: Tokenizer<string, any>[]) {
         this.scheme = scheme
     }
 
-    update = 0
     run() {
         while (!this.source.eof()) {
             for (const tnz of this.scheme) {
