@@ -57,6 +57,14 @@ export abstract class LexerBase implements Lexer {
         // console.log(this.update,this.source.size)
     }
 
+    next() {
+        return this.tokens[++this.index]
+    }
+
+    get(i: number = 0) {
+        return this.tokens[this.index + i]
+    }
+
     private add_merger(tokens: Token<any>[], tnz: Tokenizer<string, any>) {
         if (is_pack(tnz)) {
             const _ = tnz as Pack

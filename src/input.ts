@@ -83,7 +83,7 @@ export class Input {
     }
 
     private update_line(step: number) {
-        const m = /\n/g.exec(this.pan([-step, step - 2], true))
+        const m = /\n/g.exec(this.pan([-step, 0], true))
         this.column += step
         if (m) {
             if (step >= 0) {
