@@ -67,12 +67,14 @@ export function group_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacker,
         if (group.parent && !group.self_end) {
             if (is_pack(group.parent)) {
                 const parent = group.parent as Pack
+                parent.status = group.status
+                parent.next()
                 if (parent.type == "GroupSerial") {
                     parent.ended = true;
                     (parent as GroupSerial).self_end = true;
+                } else {
+                    parent.status = group.options.nullable ? 'succeed' : group.status
                 }
-                parent.status = group.status
-                parent.next()
             }
         }
         if (group.status == "succeed") {

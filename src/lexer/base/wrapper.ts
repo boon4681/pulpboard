@@ -7,10 +7,14 @@ export function wrapper(lexer: Lexer, tokens: Token<any>[], stack: Stacker, debu
     const wrapper = tnz as Wrapper
     wrapper.update()
     debug.log('@start -', wrapper.type, wrapper.name)
+    if (wrapper.status == 'fail') {
+        throw new Error(wrapper.status)
+    }
     for (; !wrapper.ended; wrapper.next()) {
         const child = wrapper.get()
         debug.lpp(child.name, '- type', child.type)
         if (child.type == "Reader") {
+            debug.lpp(child.test(lexer))
             if (child.test(lexer)) {
                 const result = child.read(lexer)
                 wrapper.status = "succeed"
@@ -40,6 +44,9 @@ export function wrapper(lexer: Lexer, tokens: Token<any>[], stack: Stacker, debu
                     throw new Error(`No viable alternative.\n${lexer.source.pan([-100, 1], true)}<- is not ${child.name}`)
                 }
                 if (wrapper.parent) {
+                    if(wrapper.index > 1){
+                        throw new Error(`No viable alternative.\n${lexer.source.pan([-100, 1], true)}<- is not ${child.name}`)
+                    }
                     const parent = wrapper.parent as Pack
                     parent.status = "fail"
                     parent.next()

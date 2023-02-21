@@ -10,7 +10,9 @@ export function wrapper_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacke
     // debug.log(tokens.map(a=>a.raw))
     for (; !wrapper.ended; wrapper.next()) {
         const child = wrapper.get()
+        debug.lpp(child.name, '- type', child.type)
         if (child.type == "Reader") {
+            debug.lpp(child.test(lexer))
             if (child.test(lexer)) {
                 const result = child.read(lexer)
                 wrapper.status = "succeed"
@@ -38,11 +40,15 @@ export function wrapper_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacke
                     stack.pop('@pop -', wrapper.type, wrapper.name);
                     break
                 }
-            } else if (child.options.nullable == false && wrapper.options.nullable == false) {
+            }
+            else if (child.options.nullable == false && wrapper.options.nullable == false) {
                 if (wrapper.status == "succeed") {
                     throw new Error(`No viable alternative.\n${lexer.source.pan([-100, 1], true)}<- is not ${child.name}`)
                 }
                 if (wrapper.parent) {
+                    if(wrapper.index > 1){
+                        throw new Error(`No viable alternative.\n${lexer.source.pan([-100, 1], true)}<- is not ${child.name}`)
+                    }
                     const parent = wrapper.parent as Pack
                     parent.status = "fail"
                     parent.next()
@@ -52,7 +58,13 @@ export function wrapper_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacke
                     lexer.source.pop()
                     return false
                 }
-            } else if (child.options.nullable) {
+            }
+            else if (child.options.nullable == false && wrapper.options.nullable == true && wrapper.index == 0) {
+                wrapper.status = "succeed"
+                wrapper.ended = true
+                break
+            }
+            else if (child.options.nullable) {
                 wrapper.status = "succeed"
                 if (wrapper.parent) {
                     const parent = wrapper.parent as Pack
@@ -84,7 +96,7 @@ export function wrapper_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacke
                 parent.next()
             }
         }
-        if (wrapper.status == "succeed") {
+        if (wrapper.status == "succeed" && wrapper.index > 0) {
             stack.push(clone);
             (lexer as any).add_merger(tokens, clone)
         } else {
