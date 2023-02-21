@@ -7,9 +7,6 @@ export function wrapper(lexer: Lexer, tokens: Token<any>[], stack: Stacker, debu
     const wrapper = tnz as Wrapper
     wrapper.update()
     debug.log('@start -', wrapper.type, wrapper.name)
-    if (wrapper.status == 'fail') {
-        throw new Error(wrapper.status)
-    }
     for (; !wrapper.ended; wrapper.next()) {
         const child = wrapper.get()
         debug.lpp(child.name, '- type', child.type)

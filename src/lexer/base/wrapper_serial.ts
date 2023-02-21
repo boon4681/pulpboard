@@ -46,7 +46,7 @@ export function wrapper_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacke
                     throw new Error(`No viable alternative.\n${lexer.source.pan([-100, 1], true)}<- is not ${child.name}`)
                 }
                 if (wrapper.parent) {
-                    if(wrapper.index > 1){
+                    if (wrapper.index > 1) {
                         throw new Error(`No viable alternative.\n${lexer.source.pan([-100, 1], true)}<- is not ${child.name}`)
                     }
                     const parent = wrapper.parent as Pack
@@ -61,7 +61,8 @@ export function wrapper_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacke
             }
             else if (child.options.nullable == false && wrapper.options.nullable == true && wrapper.index == 0) {
                 wrapper.status = "succeed"
-                wrapper.ended = true
+                wrapper.ended = true;
+                (wrapper.parent as WrapperSerial).self_end = true;
                 break
             }
             else if (child.options.nullable) {
@@ -96,7 +97,7 @@ export function wrapper_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacke
                 parent.next()
             }
         }
-        if (wrapper.status == "succeed" && wrapper.index > 0) {
+        if (wrapper.status == "succeed" && wrapper.index == wrapper.children.length && !wrapper.self_end) {
             stack.push(clone);
             (lexer as any).add_merger(tokens, clone)
         } else {
