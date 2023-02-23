@@ -50,11 +50,12 @@ export function group_serial(lexer: Lexer, tokens: Token<any>[], stack: Stacker,
             clone.parent = group
             stack.push(clone);
             (lexer as any).add_merger(tokens, clone)
+            group.status = "unprocess"
             break
         }
         group.status = "fail"
     }
-    if (group.status == "fail" && group.options.nullable == false && group.parent?.type !== "GroupSerial") {
+    if (group.status == "fail" && group.options.nullable == false && group.parent?.type !== "GroupSerial" && !group.self_end) {
         if (stack.step > stack.children.length * 0.7) {
             throw new Error(`No viable alternative.\n${lexer.source.pan([-100, 1], true)}<- is not ${group.name}`)
         }

@@ -40,6 +40,9 @@ export function ifwrapper(lexer: Lexer, tokens: Token<any>[], stack: Stacker, de
                         throw new Error(`No viable alternative.\n${lexer.source.pan([-100, 1], true)}<- is not ${child.name}`)
                     }
                     if (ifwrapper.parent) {
+                        if(ifwrapper.index > 1){
+                            throw new Error(`No viable alternative.\n${lexer.source.pan([-100, 1], true)}<- is not ${child.name}`)
+                        }
                         const parent = ifwrapper.parent as Pack
                         parent.status = "fail"
                         parent.next()
@@ -68,10 +71,14 @@ export function ifwrapper(lexer: Lexer, tokens: Token<any>[], stack: Stacker, de
             }
         }
         if (ifwrapper.ended) {
-            if (ifwrapper.parent && ifwrapper.stop_reading) {
+            if (ifwrapper.parent) {
                 if (is_pack(ifwrapper.parent)) {
                     const parent = ifwrapper.parent as Pack
-                    parent.ended = true
+                    if(ifwrapper.stop_reading){
+                        parent.ended = true
+                    }else{
+                        parent.next()
+                    }
                 }
             }
             stack.pop('@pop -', ifwrapper.type, ifwrapper.name)
@@ -83,8 +90,9 @@ export function ifwrapper(lexer: Lexer, tokens: Token<any>[], stack: Stacker, de
                 parent.status = ifwrapper.status
                 if (ifwrapper.stop_reading && ifwrapper.status == "succeed") {
                     parent.ended = true
+                }else{
+                    parent.next()
                 }
-                parent.next()
             }
         }
         stack.pop('@pop -', ifwrapper.type, ifwrapper.name)

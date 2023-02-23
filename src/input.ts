@@ -82,8 +82,18 @@ export class Input {
         return value
     }
 
+    cl(value: number) {
+        if (value < 0) {
+            return 0
+        }
+        if (value > this.size) {
+            return this.size
+        }
+        return value
+    }
+
     private update_line(step: number) {
-        const m = /\n/g.exec(this.pan([-step, 0], true))
+        const m = this.pan([-step, 0], true).match(/\n/gm)
         this.column += step
         if (m) {
             if (step >= 0) {
@@ -159,6 +169,10 @@ export class Input {
         value[0] += this.index - 1
         value[1] += this.index - 1
         return this.source.slice(value[0], value[1])
+    }
+
+    pospan(range:[number,number]){
+        return this.source.slice(range[0], range[1])
     }
 
     to_end() {
