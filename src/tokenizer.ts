@@ -1,102 +1,6 @@
-import { Input } from "./input"
+import { IPack, Lexer, PackStatus, TnzOptions, TnzType, Token, Tokenizer } from "./interface";
 
-export type Range = [number, number]
-
-export type Location = {
-    line: number
-    column: number
-}
-
-export type Span = {
-    start: Location
-    end: Location
-    range: Range
-    size: number
-}
-
-export class Token<A> {
-    name: string
-    raw: string
-    value: A
-    span: Span
-
-    constructor(name: string, raw: string, value: A, span: Span) {
-        this.name = name
-        this.raw = raw
-        this.span = span
-        this.value = value
-    }
-}
-
-export interface TnzOptionsNormal {
-    mode: "normal"
-    fragment: boolean
-    ignore: boolean
-    nullable: boolean
-}
-
-export interface TnzOptionsPush {
-    mode: "push"
-    ignore: boolean
-    nullable: boolean
-    tokenizer: Tokenizer<any, any>
-}
-
-export interface TnzOptionsPop {
-    mode: "pop"
-    ignore: boolean
-    nullable: boolean
-}
-
-export type TnzOptions = TnzOptionsNormal | TnzOptionsPush | TnzOptionsPop
-
-export enum _PackStatus {
-    succeed,
-    fail,
-    unprocess
-}
-
-enum _TnzType {
-    Unassign,
-    Reader,
-    Wrapper,
-    WrapperSerial,
-    IFWrapper,
-    Group,
-    GroupSerial,
-    CUSTOM
-}
-
-export type TnzType = keyof typeof _TnzType;
-export type PackStatus = keyof typeof _PackStatus;
-
-export function is_pack(tnz: Tokenizer<any, any>) {
-    return (["Group", "GroupSerial", "Wrapper", "IFWrapper", "WrapperSerial"] as TnzType[]).includes(tnz.type)
-}
-
-export interface Tokenizer<A, B> {
-    type: TnzType;
-    name: string;
-    parent: Tokenizer<any, any> | undefined
-    readonly casting: boolean
-
-    options: TnzOptions
-
-    test(lexer: Lexer): boolean
-    read(lexer: Lexer): Token<A>
-    set(options: TnzOptions): Tokenizer<A, B>
-    clone(options?: TnzOptions): Tokenizer<A, B>
-}
-
-export interface Lexer {
-    queue: Tokenizer<string, any>[]
-    scheme: Tokenizer<string, any>[]
-    tokens: Token<any>[]
-    source: Input
-    index: number
-}
-
-abstract class TnzBase<A, B> implements Tokenizer<A, B> {
+abstract class TnzBase implements Tokenizer {
     readonly type: TnzType = "Unassign"
     name: string
     options: TnzOptions = {
@@ -105,9 +9,7 @@ abstract class TnzBase<A, B> implements Tokenizer<A, B> {
         nullable: false,
         fragment: false
     }
-    parent: Tokenizer<any, any> | undefined;
-
-    readonly casting: boolean = false;
+    parent: Pack | undefined;
 
     constructor(name: string) {
         this.name = name
@@ -118,7 +20,7 @@ abstract class TnzBase<A, B> implements Tokenizer<A, B> {
         return this
     }
 
-    clone(options?: TnzOptions): Tokenizer<A, B> {
+    clone(options?: TnzOptions): Tokenizer {
         throw new Error(`Method clone in ${this.type}:${this.name} not implemented.`)
     }
 
@@ -126,12 +28,13 @@ abstract class TnzBase<A, B> implements Tokenizer<A, B> {
         throw new Error(`Method test in ${this.type}:${this.name} not implemented.`)
     }
 
-    read(lexer: Lexer): Token<A> {
+    read(lexer: Lexer): Token {
         throw new Error(`Method read in ${this.type}:${this.name} not implemented.`)
     }
 }
 
-export class Reader extends TnzBase<string, string> {
+
+export class Reader extends TnzBase {
     readonly type: TnzType = "Reader"
     regex: RegExp
 
@@ -149,9 +52,9 @@ export class Reader extends TnzBase<string, string> {
         return this.test(lexer) && this.regex.exec(lexer.source.to_end())
     }
 
-    private strip(tnz: Tokenizer<any, any>) {
+    private strip(tnz: Tokenizer) {
         const depth: string[] = []
-        const stack: Tokenizer<any, any>[] = [tnz]
+        const stack: Tokenizer[] = [tnz]
         while (stack.length > 0) {
             const i = stack.pop()
             if (i) {
@@ -167,7 +70,7 @@ export class Reader extends TnzBase<string, string> {
         return depth.reverse().join(" > ")
     }
 
-    read(lexer: Lexer): Token<string> {
+    read(lexer: Lexer): Token {
         const match = this.match(lexer)
         const source = lexer.source
         const start_line = source.line + 0
@@ -176,7 +79,7 @@ export class Reader extends TnzBase<string, string> {
             const start = source.index
             const end = start + match[0].length + 0
             const value = source.seek(match[0].length)
-            return new Token<string>(this.name, value, this.cast(value), {
+            return new Token(this.name, value, {
                 start: {
                     line: start_line,
                     column: start_col
@@ -190,10 +93,6 @@ export class Reader extends TnzBase<string, string> {
             })
         }
         throw new Error(`${source.name}:${start_line}:${start_col}\n${source.pan([-100, 0], true)} <- missing ${this.regex}`)
-    }
-
-    cast(value: string): string {
-        return value
     }
 
     clone(options?: TnzOptions) {
@@ -219,12 +118,12 @@ export class Merger {
         public start_index: number,
     ) { }
 
-    merge(tokens: Token<any>[]) {
+    merge(tokens: Token[]) {
         const removed = tokens.splice(this.start_index)
         if (removed.length == 0) return;
-        const raw = removed.map(a => a.raw).join('')
+        const raw = removed.map(a => a.value).join('')
         tokens.push(
-            new Token<string>(this.name, raw, raw, {
+            new Token(this.name, raw, {
                 start: removed[0].span.start,
                 end: removed[removed.length - 1].span.end,
                 range: [
@@ -237,10 +136,11 @@ export class Merger {
     }
 }
 
-export abstract class Pack extends TnzBase<string, string>{
+
+export abstract class Pack extends TnzBase implements IPack {
     index: number = 0
-    children: Tokenizer<string, any>[] = []
-    last_child: Tokenizer<string, any> | undefined = undefined
+    children: Tokenizer[] = []
+    last_child: Tokenizer | undefined = undefined
 
     nullable_pop: boolean = false
     status: PackStatus = "unprocess"
@@ -248,32 +148,19 @@ export abstract class Pack extends TnzBase<string, string>{
     merging = false
     merger?: Merger
 
-    merge(tokens: Token<any>[]) {
-        if (!this.merging) {
-            throw new Error(`Method merge in ${this.type}:${this.name} not implemented.`)
-        }
-        this.merger?.merge(tokens)
-    }
-
-    update() {
-        if (this.index == this.children.length) {
-            this.ended = true
-        }
-    }
-
     next() {
+        // console.log("next", this.name)
         if (this.index < this.children.length) {
             this.index++
         }
-        this.update()
+        if (this.index == this.children.length) {
+            this.ended = true
+        }
+        return this.children[this.index]
     }
 
-    add(children: Tokenizer<string, any>[]) {
+    add(children: Tokenizer[]) {
         if (children.length == 0) throw new Error(`${this.type} Empty`)
-        const u = children.find(a => a.type == "CUSTOM")
-        if (u) {
-            throw new Error('Tokenizer type:CUSTOM is not support')
-        }
         const o = children.find(a => a.type == "Unassign")
         if (o) {
             throw new Error('Cannot add tokenizer type:Unassign to stack')
@@ -296,8 +183,7 @@ export abstract class Pack extends TnzBase<string, string>{
     }
 
     del() {
-        const u = Object.assign(Object.assign({}, this), { children: undefined, last_child: undefined, parent: undefined })
-        return u
+        return Object.assign(Object.assign({}, this), { children: this.children.map(a => a.name), last_child: undefined, parent: undefined })
     }
 }
 
@@ -316,6 +202,7 @@ export class Wrapper extends Pack {
         return a
     }
 }
+
 
 export class WrapperSerial extends Pack {
     readonly type: TnzType = "WrapperSerial"
@@ -373,7 +260,7 @@ export class IFWrapper extends Pack {
 export class Group extends Pack {
     readonly type: TnzType = "Group"
 
-    add(children: Tokenizer<string, any>[]) {
+    add(children: Tokenizer[]) {
         super.add(
             // sorted array to increase performance
             children.sort((a: any, b: any) => {

@@ -1,15 +1,15 @@
-import { Tokenizer } from "../tokenizer";
+import { Tokenizer } from "../interface";
 
 export class DepthDebug {
     depth: number = 0
 
     constructor(public disable: boolean) { }
 
-    strip(tnz: Tokenizer<any, any>) {
+    strip(tnz: Tokenizer) {
         if (this.disable) return;
 
         const depth: string[] = []
-        const stack: Tokenizer<any, any>[] = [tnz]
+        const stack: Tokenizer[] = [tnz]
         while (stack.length > 0) {
             const i = stack.pop()
             if (i) {
@@ -20,7 +20,7 @@ export class DepthDebug {
             }
         }
         if (depth.length > 5) {
-            return '...'+depth.reverse().slice(depth.length - 5).join(" > ")
+            return '...' + depth.reverse().slice(depth.length - 5).join(" > ")
         }
         return depth.reverse().join(" > ")
     }
@@ -37,8 +37,8 @@ export class DepthDebug {
         })
         if (this.depth == 0) {
             console.log(...u)
-        } if (this.depth > 0) {
-            console.log(new Array(this.depth).fill("").join("    "), ...u)
+        } else if (this.depth > 0) {
+            console.log(new Array(this.depth).fill("    ").join(""), ...u)
             // console.log(this.depth+'|', ...u)
         } else {
             console.log(...u)
@@ -53,17 +53,13 @@ export class DepthDebug {
     }
 
     push(...arg: any) {
-        this.depth += 1
         this.log(...arg)
+        this.depth += 1
     }
 
     pop(...arg: any) {
-        this.log(...arg)
         this.depth -= 1
-        if (this.depth < 0) {
-            console.log(...arg)
-            throw new Error()
-        }
+        this.log(...arg)
         // console.log(this.depth)
     }
 }
