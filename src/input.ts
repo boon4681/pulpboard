@@ -93,8 +93,9 @@ export class Input {
     }
 
     private update_line(step: number) {
-        const m = this.pan([-step, 0], true).match(/\n/gm)
-        this.column += step
+        const t = this.pan([-step, 0], true)
+        const m = t.match(/\n/gm)
+        const c = t.split("\n")
         if (m) {
             if (step >= 0) {
                 this.line += m.length
@@ -102,7 +103,9 @@ export class Input {
                 this.line -= m.length
             }
             this.line_index = this.index
-            this.column = 0
+            this.column = c[c.length-1].length
+        } else{
+            this.column += step
         }
     }
 

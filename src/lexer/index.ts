@@ -1,16 +1,17 @@
 import { Input } from "../input";
-import { is_pack, Lexer, Token, Tokenizer } from "../interface";
+import { is_pack, Lexer, Span, Token, Tokenizer } from "../interface";
 import { Group, GroupSerial, IFWrapper, Merger, Pack, Reader, Wrapper, WrapperSerial } from "../tokenizer";
 import { SyntaxError } from "./error";
 import { DepthDebug } from "./debug";
 import chalk from "chalk";
 // import chalk from "chalk";
 
-export class LexerBase implements Lexer {
+export class LexerBase<MappedToken> implements Lexer<MappedToken> {
     queue: Tokenizer[] = [];
-    tokens: Token[] = [];
+    tokens: (Token | MappedToken)[] = [];
     index: number = 0;
     disable_debugger: boolean = true
+    tokenMapper?: (name: string, value: string, span: Span) => MappedToken
 
     constructor(
         public source: Input,
@@ -49,7 +50,9 @@ export class LexerBase implements Lexer {
                     }
                 }
             }
-            this.source.wreak_havoc()
+            this.source.wreak_havoc({
+                err: new Error("No matched syntax: " + chalk.underline(this.source.pan([0, 100], true)))
+            })
         }
     }
 
@@ -62,7 +65,7 @@ export class LexerBase implements Lexer {
         }
     }
 
-    private _read(scheme: Tokenizer): Token[] | undefined {
+    private _read(scheme: Tokenizer): (Token|MappedToken)[] | undefined {
         const tokens: Token[] = []
         const stack: Tokenizer[] = []
         const debug = new DepthDebug(this.disable_debugger)
@@ -438,6 +441,9 @@ export class LexerBase implements Lexer {
                     // this should be something
                 }
             }
+        }
+        if (this.tokenMapper) {
+            return tokens.map(a => this.tokenMapper!(a.name, a.value, a.span))
         }
         return tokens
     }

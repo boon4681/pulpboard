@@ -5,19 +5,15 @@
             "ES6",
             "ES2020"
         ],
-        "declaration": true,
         "module": "CommonJS",
         "esModuleInterop": true,
-        "declarationMap": true,
         "forceConsistentCasingInFileNames": true,
         "strict": true,
         "skipLibCheck": true,
         "allowSyntheticDefaultImports": true,
-        "resolveJsonModule":true,
-        "outDir": "./dist",
-        "paths": {
-            "pulpboard":["./test/*"]
-        }
+        "resolveJsonModule": true,
+        "moduleResolution": "node",
+        "outDir": "./dist"
     },
     "include": [
         "./src",

@@ -72,12 +72,13 @@ export function is_pack(tnz: Tokenizer) {
     return (["Group", "GroupSerial", "Wrapper", "IFWrapper", "WrapperSerial"] as TnzType[]).includes(tnz.type)
 }
 
-export interface Lexer {
+export interface Lexer<MappedToken = any> {
     queue: Tokenizer[]
     scheme: Tokenizer[]
-    tokens: Token[]
+    tokens: (Token | MappedToken)[]
     source: Input
     index: number
+    tokenMapper?: (name:string,value:string,span:Span) => MappedToken
 }
 
 export interface Tokenizer {
