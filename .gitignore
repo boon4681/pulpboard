@@ -5,3 +5,6 @@
 .fake
 src/wow
 dist
+debug.as
+debug2.txt
+key.js
