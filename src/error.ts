@@ -1,7 +1,6 @@
 import chalk from "chalk";
-import { Input } from "../input";
-import { Tokenizer } from "../interface";
-import { Reader } from "../tokenizer";
+import { Input } from "./input";
+import { Reader, Tokenizer } from "./tokenizer";
 
 export class SyntaxError extends Error {
     constructor(

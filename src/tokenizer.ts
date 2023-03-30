@@ -1,48 +1,81 @@
-import { IPack, Lexer, PackStatus, TnzOptions, TnzType, Token, Tokenizer } from "./interface";
+import { Input } from "./input"
+import { CMP, Instruction, InstructionType, SIF, SIT, POP, PUSH, READ, SADD, SET, TEST, NEP, SKIP, ADD, ICMP } from "./instruction"
+import { Address, Stack } from "./memo"
 
-abstract class TnzBase implements Tokenizer {
-    readonly type: TnzType = "Unassign"
+let id = 1
+
+export type Range = [number, number]
+
+export type Location = {
+    line: number
+    column: number
+}
+
+export type Span = {
+    start: Location
+    end: Location
+    range: Range
+    size: number
+}
+
+export class Token {
     name: string
-    options: TnzOptions = {
-        mode: 'normal',
-        ignore: false,
-        nullable: false,
-        fragment: false
-    }
-    parent: Pack | undefined;
+    value: string
+    span: Span
 
-    constructor(name: string) {
+    constructor(name: string, raw: string, span: Span) {
         this.name = name
-    }
-
-    set(options: TnzOptions) {
-        this.options = options
-        return this
-    }
-
-    clone(options?: TnzOptions): Tokenizer {
-        throw new Error(`Method clone in ${this.type}:${this.name} not implemented.`)
-    }
-
-    test(lexer: Lexer): boolean {
-        throw new Error(`Method test in ${this.type}:${this.name} not implemented.`)
-    }
-
-    read(lexer: Lexer): Token {
-        throw new Error(`Method read in ${this.type}:${this.name} not implemented.`)
+        this.value = raw
+        this.span = span
     }
 }
 
+export interface Lexer {
+    stack: Tokenizer[]
+    scheme: Tokenizer[]
+    tokens: Token[]
+    source: Input
+    index: number
+}
 
-export class Reader extends TnzBase {
-    readonly type: TnzType = "Reader"
-    regex: RegExp
+export enum TokenizerType {
+    Reader,
+    Wrapper,
+    WrapperSerial,
+    IFWrapper,
+    Group,
+    GroupSerial
+}
 
-    constructor(name: string, regex: RegExp) {
-        super(name)
-        this.regex = regex
-    }
+export const is_pack = (type: TokenizerType) => {
+    return [
+        TokenizerType.Wrapper,
+        TokenizerType.WrapperSerial,
+        TokenizerType.IFWrapper,
+        TokenizerType.Group,
+        TokenizerType.GroupSerial,
+    ].includes(type)
+}
 
+export interface Tokenizer {
+    id: number
+    type: TokenizerType | null
+    name: string
+    features: Record<string, any>
+    test(lexer: Lexer): boolean
+    read(lexer: Lexer): Token
+    New(): Tokenizer
+    set(name: string, value: any): Tokenizer
+}
+
+export class Reader implements Tokenizer {
+    id = id++
+    type = TokenizerType.Reader
+    features: Record<string, any> = {}
+    constructor(
+        public name: string,
+        public regex: RegExp
+    ) { }
     test(lexer: Lexer): boolean {
         const m = this.regex.exec(lexer.source.to_end())
         return m ? m.index === 0 : false
@@ -50,24 +83,6 @@ export class Reader extends TnzBase {
 
     match(lexer: Lexer) {
         return this.test(lexer) && this.regex.exec(lexer.source.to_end())
-    }
-
-    private strip(tnz: Tokenizer) {
-        const depth: string[] = []
-        const stack: Tokenizer[] = [tnz]
-        while (stack.length > 0) {
-            const i = stack.pop()
-            if (i) {
-                depth.push(i.name)
-                if (i.parent) {
-                    stack.push(i.parent)
-                }
-            }
-        }
-        if (depth.length > 5) {
-            return '...' + depth.reverse().slice(depth.length - 5).join(" > ")
-        }
-        return depth.reverse().join(" > ")
     }
 
     read(lexer: Lexer): Token {
@@ -95,217 +110,598 @@ export class Reader extends TnzBase {
         throw new Error(`${source.name}:${start_line}:${start_col}\n${source.pan([-100, 0], true)} <- missing ${this.regex}`)
     }
 
-    clone(options?: TnzOptions) {
-        let a = new Reader(this.name, this.regex)
-        if (options) {
-            a.options = options
-        } else {
-            a.options = this.options
-        }
-        return a
+    New(name?: string): Reader {
+        const C = new Reader(name ? name : this.name, this.regex)
+        C.features = this.features
+        return C
     }
 
-    fragment(name: string) {
-        let f = this.clone()
-        f.name = name
-        return f
-    }
-}
-
-export class Merger {
-    constructor(
-        public name: string,
-        public start_index: number,
-    ) { }
-
-    merge(tokens: Token[]) {
-        const removed = tokens.splice(this.start_index)
-        if (removed.length == 0) return;
-        const raw = removed.map(a => a.value).join('')
-        tokens.push(
-            new Token(this.name, raw, {
-                start: removed[0].span.start,
-                end: removed[removed.length - 1].span.end,
-                range: [
-                    removed[0].span.range[0],
-                    removed[removed.length - 1].span.range[1]
-                ],
-                size: removed[removed.length - 1].span.range[1] - removed[0].span.range[0]
-            })
-        )
-    }
-}
-
-
-export abstract class Pack extends TnzBase implements IPack {
-    index: number = 0
-    children: Tokenizer[] = []
-    last_child: Tokenizer | undefined = undefined
-
-    nullable_pop: boolean = false
-    status: PackStatus = "unprocess"
-    ended = false
-    merging = false
-    merger?: Merger
-
-    next() {
-        // console.log("next", this.name)
-        if (this.index < this.children.length) {
-            this.index++
-        }
-        if (this.index == this.children.length) {
-            this.ended = true
-        }
-        return this.children[this.index]
-    }
-
-    add(children: Tokenizer[]) {
-        if (children.length == 0) throw new Error(`${this.type} Empty`)
-        const o = children.find(a => a.type == "Unassign")
-        if (o) {
-            throw new Error('Cannot add tokenizer type:Unassign to stack')
-        }
-        for (let i = 0; i < children.length; i++) {
-            this.children.push(children[i])
-        }
-        this.last_child = this.children[this.children.length - 1]
-        if (!this.nullable_pop) this.nullable_pop = children.find(a => a.options.nullable && a.options.mode == 'pop') != undefined
+    set(name: string, value: any) {
+        this.features[name] = value
         return this
     }
 
-    get(index?: number) {
-        if (index) return this.children[index]
-        return this.children[this.index]
-    }
+}
 
-    protected clone_attr(tnz: Pack) {
-        tnz.merging = this.merging
+export abstract class Pack implements Tokenizer {
+    id = id++
+    type: TokenizerType | null = null
+    index: number = 0
+    features: Record<string, any> = {}
+    children: Tokenizer[] = []
+    constructor(
+        public name: string
+    ) {
+        // console.log(this.name)
     }
+    test(lexer: Lexer): boolean {
+        throw new Error("Method not implemented.")
+    }
+    read(lexer: Lexer): Token {
+        throw new Error("Method not implemented.")
+    }
+    compile() {
+        const self = this.New()
+        const inst = new Stack<Instruction>()
+        const stack = new Stack<Tokenizer>([self])
+        const ref = new Map<number, number>()
+        const resume: number[] = []
+        const skip: number[] = []
+        const stop: [number, number, number][] = []
+        ref.set(self.id, 0)
+        while (stack.size > 0) {
+            const parent = stack.get() as any
+            if (parent.type == TokenizerType.Reader) {
+                inst.add(new READ(parent, "A"))
+            } else {
+                if (parent.index == 0) {
+                    ref.set(parent.id, inst.size)
+                }
+                switch (parent.type) {
+                    case TokenizerType.Wrapper:
+                        {
+                            if (parent.index == 0) {
+                                if (ref.get(parent.id) && (parent.children as Array<Tokenizer>).filter((a, i) => i > parent.index && ref.get(a.id)).length > 0) {
+                                    inst.add([
+                                        new POP(),
+                                        new CMP(new Address('m' + ref.size.toString()), 0),
+                                        new SIT(9),
+                                        new ICMP(0),
+                                        new SIT(4),
+                                        new ICMP(0),
+                                        new SIT(2),
+                                        new POP(),
+                                        new SIF(-6),
+                                        new ADD(new Address('m' + ref.size.toString(), -1)),
+                                        new CMP(new Address('m' + ref.size.toString()), -1),
+                                        new SIF(0)
+                                    ])
+                                } else inst.add(new POP())
+                            }
+                            for (; parent.index < parent.children.length; parent.index++) {
+                                const item = parent.children[parent.children.length - parent.index - 1]
+                                if (item.type == TokenizerType.Reader) {
+                                    const inst_: Instruction[] = []
+                                    if (item.features["nullable"] == true) {
+                                        inst_.push(
+                                            new READ(item, "A"),
+                                        )
+                                    } else {
+                                        inst_.push(
+                                            new READ(item, "A"),
+                                            new CMP(new Address("A"), 1),
+                                        )
+                                    }
+                                    if (resume.length > 0) {
+                                        inst_.push(new SIF(inst.size - ref.get(parent.id)! - 11), new SADD())
+                                    } else {
+                                        inst_.push(new SIF(inst.size - ref.get(parent.id)!), new SADD())
+                                    }
+                                    inst.add(inst_)
+                                } else {
+                                    if (item.type == TokenizerType.IFWrapper) {
+                                        inst.add(new SADD())
+                                        stack.add(item.New())
+                                        break
+                                    } else {
+                                        if (ref.get(item.id)) {
+                                            resume.push(inst.size)
+                                            inst.add(new SADD())
+                                            skip.push(inst.size)
+                                            inst.add(new SKIP(0))
+                                            inst.add(new ADD(new Address('m' + ref.size.toString(), 1)))
+                                        } else {
+                                            inst.add(new SADD())
+                                            stack.add(item)
+                                            break
+                                        }
+                                    }
+                                }
+                            }
+                            if (parent.index == parent.children.length) {
+                                inst.add([new PUSH(parent)]);
+                                if (resume.length) {
+                                    (inst.array[ref.get(parent.id)!] as any).mov = ref.get(parent.id)! - resume.pop()!
+                                }
+                                if (skip.length > 0) {
+                                    const SKIP = skip.pop() as unknown as number
+                                    const t = stack.array.filter(a => a.name == parent.name && a.id != parent.id).slice(-1)[0];
 
-    del() {
-        return Object.assign(Object.assign({}, this), { children: this.children.map(a => a.name), last_child: undefined, parent: undefined })
+                                    (inst.array[SKIP] as any).mov = -(inst.size - SKIP + 1);
+                                    (inst.array[ref.get(parent.id)! + 6] as any).id = parent.id;
+                                    (inst.array[ref.get(parent.id)! + 8] as any).id = t.id;
+                                }
+                            }
+                        }
+                        break
+                    case TokenizerType.IFWrapper:
+                        {
+                            if (parent.index == 0) {
+                                ref.set(parent.id, inst.size)
+                                if ((parent.features as any).stop) {
+                                    inst.add([
+                                        new POP(),
+                                        new SIF(1),
+                                        new NEP(0),
+                                    ])
+                                } else {
+                                    inst.add([
+                                        new POP()
+                                    ])
+                                }
+                            }
+                            for (; parent.index < parent.children.length; parent.index++) {
+                                const item = parent.children[parent.children.length - parent.index - 1]
+                                if (item.type == TokenizerType.Reader) {
+                                    const inst_: Instruction[] = []
+                                    if (item.features["nullable"] == true) {
+                                        inst_.push(
+                                            new READ(item, "A"),
+                                        )
+                                    } else {
+                                        inst_.push(
+                                            new READ(item, "A"),
+                                            new CMP(new Address("A"), 1),
+                                        )
+                                    }
+                                    inst_.push(new SIF(inst.size - ref.get(parent.id)!), new SADD())
+                                    inst.add(inst_)
+                                } else {
+                                    if (ref.get(item.id)) {
+                                        resume.push(inst.size)
+                                        inst.add(new SADD())
+                                        skip.push(inst.size)
+                                        inst.add(new SKIP(0))
+                                        inst.add(new ADD(new Address('m' + ref.size.toString(), 1)))
+                                    } else {
+                                        inst.add(new SADD())
+                                        inst.add(new SIF(inst.size - ref.get(parent.id)!))
+                                        stack.add(item.type == TokenizerType.IFWrapper ? item.New() : item)
+                                        break
+                                    }
+                                }
+                            }
+                            if (parent.index == parent.children.length) {
+                                inst.add([new PUSH(parent)]);
+                                inst.add([new SIF(inst.size - ref.get(parent.id)!)])
+                                inst.add([new CMP(new Address("A"), 1)])
+                                inst.add([new TEST(parent.condition, "A")]);
+                                if ((parent.features as any).stop) {
+                                    stop.push([
+                                        stack.get(stack.size > 1 ? -1 : 0)!.id + 0,
+                                        parent.id + 0,
+                                        inst.size + 0
+                                    ])
+                                }
+                            }
+                        }
+                        break
+                    case TokenizerType.WrapperSerial:
+                        {
+                            for (; parent.index < parent.children.length; parent.index++) {
+                                const item = parent.children[parent.children.length - parent.index - 1]
+                            }
+                        }
+                        break
+                    case TokenizerType.Group:
+                        {
+                            if (parent.index == 0) {
+                                inst.add([
+                                    new POP(),
+                                ])
+                            }
+                            for (; parent.index < parent.children.length; parent.index++) {
+                                const item = parent.children[parent.children.length - parent.index - 1]
+                                if (item.type == TokenizerType.Reader) {
+                                    const inst_: Instruction[] = []
+                                    if (item.features["nullable"] == true) {
+                                        inst_.push(
+                                            new READ(item, "A"),
+                                        )
+                                    } else {
+                                        inst_.push(
+                                            new READ(item, "A"),
+                                            new CMP(new Address("A"), 1),
+                                        )
+                                    }
+                                    inst_.push(
+                                        new SIT(inst.size - 1 - ref.get(parent.id)!),
+                                        new SADD(),
+                                    )
+                                    inst.add(inst_)
+                                } else {
+                                    if (ref.get(item.id)) {
+                                        throw new Error("Method not implemented.")
+                                    } else {
+                                        inst.add([
+                                            new SIT(inst.size - 1 - ref.get(parent.id)!),
+                                            new SADD(),
+                                        ])
+                                        stack.add(item)
+                                        ref.set(item.id, inst.size)
+                                        break
+                                    }
+                                }
+                            }
+                            if (parent.index == parent.children.length) {
+                                inst.add([new PUSH(parent)]);
+                            }
+                        }
+                        break
+                    case TokenizerType.GroupSerial:
+                        {
+                            if (parent.index == 0) {
+                                inst.add([
+                                    new SIF(1),
+                                    new SET(new Address("B", 1)),
+                                    new POP(),
+                                    new CMP(new Address("B"), 1),
+                                    new SET(new Address("B", 0)),
+                                    new SIT(0),
+                                ])
+                            }
+                            for (; parent.index < parent.children.length; parent.index++) {
+                                const item = parent.children[parent.children.length - parent.index - 1]
+                                if (item.type == TokenizerType.Reader) {
+                                    const inst_: Instruction[] = []
+                                    if (item.features["nullable"] == true) {
+                                        inst_.push(
+                                            new READ(item, "A"),
+                                        )
+                                    } else {
+                                        inst_.push(
+                                            new READ(item, "A"),
+                                            new CMP(new Address("A"), 1),
+                                        )
+                                    }
+                                    inst_.push(
+                                        new SIT(inst.size - 1 - ref.get(parent.id)!),
+                                        new SADD(),
+                                    )
+                                    inst.add(inst_)
+                                } else {
+                                    if (ref.get(item.id)) {
+                                        throw new Error("Method not implemented.")
+                                    } else {
+                                        inst.add([
+                                            new SIT(inst.size - 5 - ref.get(parent.id)!),
+                                            new SADD(),
+                                        ])
+                                        stack.add(item)
+                                        ref.set(item.id, inst.size)
+                                        break
+                                    }
+                                }
+                            }
+                            if (parent.index == parent.children.length) {
+                                inst.add([new PUSH(parent)]);
+                                const w = inst.array[ref.get(parent.id)!] as any;
+                                w.mov = -(inst.size - ref.get(parent.id)!)
+                            }
+                        }
+                        break
+                }
+                // console.log(stack)
+                // console.log(parent.index,parent.children.length)
+                if (parent.index == parent.children.length) {
+                    parent.index = 0
+                    // console.log(stack.array.map(a => (a as any).index))
+                    stack.pop();
+                    if (stop.length) {
+                        if (stop[stop.length - 1][0] == parent.id) {
+                            // console.log(inst)
+                            const i = stop.pop()!;
+                            // console.log(ref.get(i[0])!);
+                            (inst.array[ref.get(i[1])!] as any).mov = ref.get(i[1])! - ref.get(i[0])! + 0
+                        }
+                    }
+                    if (stack.size) {
+                        (stack.get() as any).index++
+                    }
+                }
+            }
+        }
+        // let k = 0
+        // console.log([...inst.array].reverse().map((a) => {
+        //     if (a.type == InstructionType.PUSH) k++
+        //     if (a.type == InstructionType.POP) k--
+        //     return new Array(k + (a.type == InstructionType.PUSH ? -1 : 0)).fill('    ').join('') + a.constructor.name + ' ' + a.str()
+        // }).join("\n"))
+        // throw new Error
+        return inst
+    }
+    New(): Pack {
+        throw new Error("Method not implemented.")
+    }
+    set(name: string, value: any) {
+        this.features[name] = value
+        return this
+    }
+    add(items: Tokenizer[] | Tokenizer) {
+        const items_ = [items].flat(1) as Tokenizer[]
+        for (let i = 0; i < items_.length; i++) {
+            this.children.push(items_[i])
+        }
+        return this
+    }
+    ignore(list: string[]) {
+        this.children = this.children.filter(a => !list.includes(a.name))
+        return this
     }
 }
 
 export class Wrapper extends Pack {
-    readonly type: TnzType = "Wrapper"
-
-    clone(options?: TnzOptions) {
-        let a = new Wrapper(this.name)
-        a.add(this.children)
-        if (options) {
-            a.options = options
-        } else {
-            a.options = this.options
-        }
-        this.clone_attr(a)
-        return a
+    type = TokenizerType.Wrapper
+    index: number = 0
+    features = {}
+    constructor(
+        name: string,
+        public children: Tokenizer[] = []
+    ) {
+        super(name)
     }
-}
-
-
-export class WrapperSerial extends Pack {
-    readonly type: TnzType = "WrapperSerial"
-
-    self_end: boolean = false
-
-    clone(options?: TnzOptions) {
-        let a = new WrapperSerial(this.name)
-        a.add(this.children)
-        if (options) {
-            a.options = options
-        } else {
-            a.options = this.options
-        }
-        this.clone_attr(a)
-        return a
+    // compile() {
+    //     const inst = new Stack<Instruction>([
+    //         new POP()
+    //     ])
+    //     for (let i = this.children.length - 1; i >= 0; i--) {
+    //         const item = (this.children[i] as any).New() // circular calling protection
+    //         if (item.type == TokenizerType.Reader) {
+    //             const inst_: Instruction[] = []
+    //             if (item.features["nullable"] == true) {
+    //                 inst_.push(
+    //                     new READ(item, "A"),
+    //                 )
+    //             } else {
+    //                 inst_.push(
+    //                     new READ(item, "A"),
+    //                     new CMP(new Address("A"), 1),
+    //                 )
+    //             }
+    //             inst_.push(new SIT(1), new SIF(inst.size), new SADD())
+    //             inst.add(inst_)
+    //         } else {
+    //             inst.add_direct(new SADD())
+    //             inst.add_direct(item.New().compile().array)
+    //         }
+    //     }
+    //     inst.add([new PUSH(this)])
+    //     // console.log(inst)
+    //     return inst
+    // }
+    New(): Wrapper {
+        const C = new Wrapper(this.name, this.children)
+        C.features = Object.assign({}, this.features)
+        return C
     }
 }
 
 export class IFWrapper extends Pack {
-    readonly type: TnzType = "IFWrapper"
-
+    type = TokenizerType.IFWrapper
+    index: number = 0
+    features = {}
     constructor(
         name: string,
-        public condition: Reader
+        public condition: Reader,
+        public children: Tokenizer[] = [],
     ) {
         super(name)
     }
-
-    test(lexer: Lexer): boolean {
-        return this.condition.test(lexer)
+    // compile() {
+    //     const inst = new Stack<Instruction>()
+    //     if ((this.features as any).stop) {
+    //         inst.add([
+    //             new POP(),
+    //             new SIF(1),
+    //             new NEP(),
+    //         ])
+    //     } else {
+    //         inst.add([
+    //             new POP()
+    //         ])
+    //     }
+    //     for (let i = this.children.length - 1; i >= 0; i--) {
+    //         const item = (this.children[i] as any).New() // circular calling protection
+    //         if (item.type == TokenizerType.Reader) {
+    //             const inst_: Instruction[] = []
+    //             if (item.features["nullable"] == true) {
+    //                 inst_.push(
+    //                     new READ(item, "A"),
+    //                 )
+    //             } else {
+    //                 inst_.push(
+    //                     new READ(item, "A"),
+    //                     new CMP(new Address("A"), 1),
+    //                 )
+    //             }
+    //             inst_.push(new SIT(1), new SIF(inst.size), new SADD())
+    //             inst.add(inst_)
+    //         } else {
+    //             inst.add_direct(new SADD())
+    //             inst.add_direct(item.New().compile().array)
+    //         }
+    //     }
+    //     inst.add([new PUSH(this)])
+    //     inst.add([new SIF(inst.size)])
+    //     inst.add([new CMP(new Address("A"), 1)])
+    //     inst.add([new TEST(this.condition, "A")])
+    //     // console.log(inst)
+    //     return inst
+    // }
+    New(): IFWrapper {
+        const C = new IFWrapper(this.name, this.condition, this.children)
+        C.features = Object.assign({}, this.features)
+        return C
     }
+}
 
-    clone(options?: TnzOptions) {
-        let a = new IFWrapper(this.name, this.condition)
-        a.add(this.children)
-        if (options) {
-            a.options = options
-        } else {
-            a.options = this.options
-        }
-        this.clone_attr(a)
-        a.stop(this.stop_reading)
-        return a
+export class WrapperSerial extends Pack {
+    type = TokenizerType.WrapperSerial
+    index: number = 0
+    features = {}
+    constructor(
+        name: string,
+        public children: Tokenizer[] = []
+    ) {
+        super(name)
     }
-
-    stop_reading = false
-
-    stop(stop: boolean) {
-        this.stop_reading = stop
-        return this
+    // compile() {
+    //     // inst.add_direct(new SIT(1))
+    //     // inst.add_direct(new CMP(new Address('B'), 1))
+    //     const inst = new Stack<Instruction>([
+    //         new POP(),
+    //         new CMP(new Address("A"), 1),
+    //         new SET(new Address("B", 1)),
+    //         new SIT(0),
+    //     ])
+    //     for (let i = this.children.length - 1; i >= 0; i--) {
+    //         const item = (this.children[i] as any).New() // circular calling protection
+    //         if (item.type == TokenizerType.Reader) {
+    //             const inst_: Instruction[] = []
+    //             if (item.features["nullable"] == true) {
+    //                 inst_.push(
+    //                     new READ(item, "A"),
+    //                 )
+    //             } else {
+    //                 inst_.push(
+    //                     new READ(item, "A"),
+    //                     new CMP(new Address("A"), 1),
+    //                 )
+    //             }
+    //             inst_.push(new SIT(1), new SIF(inst.size - 3), new SADD())
+    //             inst.add(inst_)
+    //         } else {
+    //             inst.add_direct(new SADD())
+    //             inst.add_direct(item.New().compile().array)
+    //         }
+    //     }
+    //     inst.add([new PUSH(this)]);
+    //     (inst.array[0] as any).mov = -inst.size
+    //     // console.log([...inst.array].reverse().map((a) => a.constructor.name + ' ' + a.str()).join("\n"))
+    //     // console.log("YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY")
+    //     return inst
+    // }
+    New(): WrapperSerial {
+        const C = new WrapperSerial(this.name, this.children)
+        C.features = Object.assign({}, this.features)
+        return C
     }
 }
 
 export class Group extends Pack {
-    readonly type: TnzType = "Group"
-
-    add(children: Tokenizer[]) {
-        super.add(
-            // sorted array to increase performance
-            children.sort((a: any, b: any) => {
-                if (a.type == "Reader" && b.type == "Reader") {
-                    return 0
-                }
-                if (a.type == "Reader") {
-                    return -1
-                }
-                if (b.type == "Reader") {
-                    return 1
-                }
-                return 0
-            })
-        )
-        return this
+    type = TokenizerType.Group
+    index: number = 0
+    features = {}
+    constructor(
+        name: string,
+        public children: Tokenizer[] = []
+    ) {
+        super(name)
     }
-
-    clone(options?: TnzOptions) {
-        let a = new Group(this.name)
-        a.add(this.children)
-        if (options) {
-            a.options = options
-        } else {
-            a.options = this.options
-        }
-        this.clone_attr(a)
-        return a
+    // compile() {
+    //     const inst = new Stack<Instruction>([
+    //         new POP(),
+    //     ])
+    //     for (let i = this.children.length - 1; i >= 0; i--) {
+    //         const item = (this.children[i] as any).New()
+    //         if (item.type == TokenizerType.Reader) {
+    //             const inst_: Instruction[] = []
+    //             if (item.features["nullable"] == true) {
+    //                 inst_.push(
+    //                     new SADD(),
+    //                     new READ(item, "A"),
+    //                 )
+    //             } else {
+    //                 inst_.push(
+    //                     new SADD(),
+    //                     new READ(item, "A"),
+    //                     new CMP(new Address("A"), 1),
+    //                 )
+    //             }
+    //             inst_.push(new SIT(inst.size - 1))
+    //             inst.add(inst_)
+    //         } else {
+    //             inst.add_direct(new SADD())
+    //             inst.add_direct(item.New().compile().array)
+    //         }
+    //     }
+    //     inst.add([new PUSH(this)])
+    //     return inst
+    // }
+    New(): Group {
+        const C = new Group(this.name, this.children)
+        C.features = Object.assign({}, this.features)
+        return C
     }
 }
 
-export class GroupSerial extends Group {
-    readonly type: TnzType = "GroupSerial"
-
-    self_end: boolean = false
-
-    clone(options?: TnzOptions) {
-        let a = new GroupSerial(this.name)
-        a.add(this.children)
-        if (options) {
-            a.options = options
-        } else {
-            a.options = this.options
-        }
-        this.clone_attr(a)
-        return a
+export class GroupSerial extends Pack {
+    type = TokenizerType.GroupSerial
+    index: number = 0
+    features = {}
+    constructor(
+        name: string,
+        public children: Tokenizer[] = []
+    ) {
+        super(name)
+    }
+    // compile() {
+    //     const inst = new Stack<Instruction>([
+    //         new POP(),
+    //         new CMP(new Address("A"), 1),
+    //         new SET(new Address("B", 1)),
+    //         new SIT(0),
+    //     ])
+    //     for (let i = this.children.length - 1; i >= 0; i--) {
+    //         const item = (this.children[i] as any).New()
+    //         if (item.type == TokenizerType.Reader) {
+    //             const inst_: Instruction[] = []
+    //             if (item.features["nullable"] == true) {
+    //                 inst_.push(
+    //                     new SADD(),
+    //                     new READ(item, "A"),
+    //                 )
+    //             } else {
+    //                 inst_.push(
+    //                     new SADD(),
+    //                     new READ(item, "A"),
+    //                     new CMP(new Address("A"), 1),
+    //                 )
+    //             }
+    //             inst_.push(new SIT(inst.size - 1))
+    //             inst.add(inst_)
+    //         } else {
+    //             inst.add_direct(new SADD())
+    //             inst.add_direct(item.New().compile().array)
+    //         }
+    //     }
+    //     inst.add([new PUSH(this)]);
+    //     (inst.array[0] as any).mov = -inst.size
+    //     return inst
+    // }
+    New(): GroupSerial {
+        const C = new GroupSerial(this.name, this.children)
+        C.features = Object.assign({}, this.features)
+        return C
     }
 }
