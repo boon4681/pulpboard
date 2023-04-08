@@ -21,6 +21,7 @@ export class Stack<T> {
             this.array.push(items_[items_.length - 1 - i])
         }
         this.size = this.array.length
+        return this
     }
     add_direct(items: T[] | T) {
         const items_ = [items].flat(1) as T[]
@@ -28,6 +29,7 @@ export class Stack<T> {
             this.array.push(items_[i])
         }
         this.size = this.array.length
+        return this
     }
     pop() {
         const pop = this.array.pop()

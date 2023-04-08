@@ -209,8 +209,9 @@ const test = new IFWrapper("name", new Reader("name.test", /\w+/), [
 group.add([
     new Reader("group.open", /\(/),
     test.set("stop",true),
-    hidden,
-    group.New().set("nullable", true),
+    // hidden,
+    // group.New().set("nullable", true),
+    content,
     hidden,
     new Reader("group.close", /\)/),
 ])
@@ -218,8 +219,8 @@ group.add([
 content.add(group.New()).set("nullable", true)
 
 export const box = new GroupSerial("box", [
-    group,
-    Hidden,
+    group
+    // Hidden,
 ])
 
 // console.log((box as any).children[0].children[2])

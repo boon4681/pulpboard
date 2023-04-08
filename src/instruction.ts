@@ -16,7 +16,8 @@ export enum InstructionType {
     SIT,
     SIF,
     END,
-    SADD
+    SADD,
+    STACK,
 }
 
 export interface Instruction {
@@ -45,9 +46,7 @@ export class POP implements Instruction {
 
 export class NEP implements Instruction {
     type = InstructionType.NEP
-    constructor(
-        mov: number
-    ) { }
+    constructor() { }
     str(): string {
         return ''
     }
@@ -165,5 +164,17 @@ export class SADD implements Instruction {
     constructor() { }
     str(): string {
         return ''
+    }
+}
+
+export class STACK implements Instruction {
+    type = InstructionType.STACK
+
+    constructor(
+        public name: string,
+        public inst: Instruction[]
+    ) { }
+    str(): string {
+        return this.name
     }
 }

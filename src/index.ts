@@ -6,7 +6,17 @@ import { Address, Memory, Stack } from "./memo";
 import { box } from "./test";
 import { Group, IFWrapper, is_pack, Lexer, Pack, Reader, Token, Tokenizer, TokenizerType, Wrapper, WrapperSerial } from "./tokenizer";
 
-
+function print(gg: Stack<Instruction>) {
+    let k = 0;
+    [...gg.array].reverse().map((a, i) => {
+        if (a.type == InstructionType.PUSH) k++
+        if (a.type == InstructionType.POP) k--
+        console.log(
+            // i + 1, 
+            new Array((k > -1 ? k : 0) + (a.type == InstructionType.PUSH ? -1 : 0)).fill('    ').join('') + a.constructor.name + ' ' + a.str()
+        )
+    })
+}
 
 export class LexerBase implements Lexer {
     stack: Tokenizer[] = [];
@@ -19,24 +29,19 @@ export class LexerBase implements Lexer {
     ) {
         this.memo.scheme.push()
         this.memo.inst.add(new END())
-        this.memo.inst.add_direct(box.compile().array)
-        let k = 0;
-        [...this.memo.inst.array].reverse().map((a, i) => {
-            if (a.type == InstructionType.PUSH) k++
-            if (a.type == InstructionType.POP) k--
-            console.log(
-                // i + 1, 
-                new Array((k > -1 ? k : 0) + (a.type == InstructionType.PUSH ? -1 : 0)).fill('    ').join('') + a.constructor.name + ' ' + a.str()
-            )
-        })
+        this.memo.inst.add_direct(box.compile([], [], new Map<number, Tokenizer>()))
+        console.log(chalk.red("############\nINDEX.ts file\n############"))
+        print(this.memo.inst)
         // return
         // console.log(this.tokens)
     }
     run() {
         let merge: number[] = []
-        while (this.memo.inst.size > 0 && this.memo.inst.get().type != InstructionType.END) {
-            const inst = this.memo.inst.get() as any
-            console.log(this.memo.inst.pointer + 1, new Array(this.memo.stack.size + (inst.type == InstructionType.POP ? -1 : 0)).fill('    ').join('') + chalk.red(inst.constructor.name + ' ' + inst.str()))
+        const inst_stack: (Stack<Instruction>)[] = [this.memo.inst]
+        while (inst_stack.length > 0 && inst_stack[inst_stack.length - 1].size > 0 && inst_stack[inst_stack.length - 1].get().type != InstructionType.END) {
+            const exec: Stack<Instruction> = inst_stack[inst_stack.length - 1]
+            const inst = exec.get() as any
+            console.log(exec.pointer + 1, new Array(this.memo.stack.size + (inst.type == InstructionType.POP ? -1 : 0)).fill('    ').join('') + chalk.red(inst.constructor.name + ' ' + inst.str()))
             // console.log(this.memo)
             // console.log(new Array(space + (inst.type == InstructionType.POP ? -1 : 0)).fill('    ').join('') + chalk.red(inst.constructor.name + ' ' + inst.str()))
             switch (inst.type) {
@@ -60,7 +65,7 @@ export class LexerBase implements Lexer {
                     }
                     break
                 case InstructionType.SKIP:
-                    this.memo.inst.pointer += inst.mov
+                    exec.pointer += inst.mov
                     break
                 case InstructionType.READ:
                     {
@@ -78,12 +83,12 @@ export class LexerBase implements Lexer {
                     break
                 case InstructionType.SIT:
                     if (this.memo.temp == 0) {
-                        this.memo.inst.pointer += inst.mov
+                        exec.pointer += inst.mov
                     }
                     break
                 case InstructionType.SIF:
                     if (this.memo.temp != 0) {
-                        this.memo.inst.pointer += inst.mov
+                        exec.pointer += inst.mov
                     }
                     break
                 case InstructionType.PUSH:
@@ -111,7 +116,7 @@ export class LexerBase implements Lexer {
                             let error = pack.children[pack.index]
                             if (this.memo.global.get("B") == 1 && pack.index == 0) {
                                 // pass
-                                this.memo.temp = 0
+                                this.memo.temp = 1
                             } else if (pack.index == 0 && pack.features.nullable) {
                                 // pass
                                 this.memo.temp = 1
@@ -153,6 +158,12 @@ export class LexerBase implements Lexer {
                         this.memo.temp = this.memo.Sid - inst.id
                     }
                     break
+                case InstructionType.STACK:
+                    {
+                        inst_stack.push(new Stack<Instruction>().add_direct(inst.inst))
+                        continue
+                    }
+                    break
                 case InstructionType.TEST:
                     if (inst.tester.test(this)) {
                         this.memo.set_address(new Address(inst.variable, 1))
@@ -167,19 +178,25 @@ export class LexerBase implements Lexer {
                     const pop = this.source.pop()
                     this.source.set(pop)
                     this.memo.stack.pop()
+                    inst_stack.pop()
                     this.memo.temp = 1
-                    this.memo.inst.pointer += inst.mov
                     break
                 default:
                     console.log(inst)
                     throw new Error("Unknown")
             }
-            this.memo.inst.next()
+            exec.next()
+            if (exec.size == exec.pointer) {
+                inst_stack.pop()
+                if(inst_stack.length > 0){
+                    inst_stack[inst_stack.length - 1].next()
+                }
+            }
         }
     }
 }
 // const input = new Input("", new Array(2000).fill("").map((a, i) => i < 1000 ? '(' : ')').join(""))
-const input = new Input("", "((()))(hello")
+const input = new Input("", "((()))(hello)")
 const lexer = new LexerBase(input)
 function main() {
     const t0 = performance.now();
