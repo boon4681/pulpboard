@@ -153,7 +153,7 @@ export class Input {
     }
 
     pan(range: number | [number, number], clamp?: boolean) {
-        let value = [0, 0]
+        const value = [0, 0]
         if (typeof range == 'number') {
             if (range > 0) {
                 value[1] = range

@@ -141,7 +141,7 @@ export abstract class Pack implements Tokenizer {
     read(lexer: Lexer): Token {
         throw new Error("Method not implemented.")
     }
-    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>): Instruction[] {
+    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
         throw new Error("Method not implemented.")
     }
     New(): Pack {
@@ -174,12 +174,11 @@ export class Wrapper extends Pack {
     ) {
         super(name)
     }
-    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>): Instruction[] {
+    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
         stack.push(this)
-
         const backward: number[] = []
-
         const w = inst.push(new POP())
+
         for (let i = this.children.length - 1; i >= 0; i--) {
             const tnz = this.children[i]
             inst.push(new SADD())
@@ -194,7 +193,7 @@ export class Wrapper extends Pack {
                 if (calling) {
                     call.set(inst.push(new STACK(tnz.name, [])), tnz)
                 } else {
-                    (tnz as Pack).compile(stack, inst, call)
+                    (tnz as Pack).compile(stack, inst, call, nep)
                 }
             }
         }
@@ -206,6 +205,12 @@ export class Wrapper extends Pack {
             if (i[1].id == this.id) {
                 (inst[i[0] - 1] as STACK).inst = inst.slice(w - 1)
                 call.delete(i[0])
+            }
+        }
+        for(const i of nep){
+            if(i[1] == this.id){
+                (inst[i[0]-1] as NEP).mov = i[0] - w + 1
+                nep.delete(i[0])
             }
         }
         stack.pop()
@@ -229,14 +234,14 @@ export class IFWrapper extends Pack {
     ) {
         super(name)
     }
-    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>): Instruction[] {
+    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
         stack.push(this)
-        const w = inst.push(new POP())
         const nep_enable = this.features["stop"] == true
         if (nep_enable) {
-            inst.push(new NEP())
+            nep.set(inst.push(new NEP(0)), stack[stack.length - 2].id)
             inst.push(new SIF(1))
         }
+        const w = inst.push(new POP())
         for (let i = this.children.length - 1; i >= 0; i--) {
             const tnz = this.children[i]
             inst.push(new SADD())
@@ -251,18 +256,24 @@ export class IFWrapper extends Pack {
                 if (calling) {
                     call.set(inst.push(new STACK(tnz.name, [])), tnz)
                 } else {
-                    (tnz as Pack).compile(stack, inst, call)
+                    (tnz as Pack).compile(stack, inst, call, nep)
                 }
             }
         }
         inst.push(new PUSH(this))
-        inst.push(new SIT(inst.length - w + 1))
+        inst.push(new SIT(inst.length - w + 2 + (nep_enable ? 1 : 0)))
         inst.push(new CMP(new Address("T"), 0))
         inst.push(new TEST(this.condition, "T"))
         for (const i of call) {
             if (i[1].id == this.id) {
                 (inst[i[0] - 1] as STACK).inst = inst.slice(w - 1)
                 call.delete(i[0])
+            }
+        }
+        for(const i of nep){
+            if(i[1] == this.id){
+                (inst[i[0]-1] as NEP).mov = i[0] - w + 1
+                nep.delete(i[0])
             }
         }
         stack.pop()
@@ -285,8 +296,46 @@ export class WrapperSerial extends Pack {
     ) {
         super(name)
     }
-    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>): Instruction[] {
-        return []
+    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
+        stack.push(this)
+        inst.push(new SET(new Address("B", 0)))
+        inst.push(new SIT(0))
+        inst.push(new SET(new Address("B", 1)))
+        const w = inst.push(new POP())
+        for (let i = this.children.length - 1; i >= 0; i--) {
+            const tnz = this.children[i]
+            inst.push(new SADD())
+            if (tnz.features["nullable"] != true) {
+                inst.push(new SIF(inst.length - w))
+            }
+            if (tnz.type == TokenizerType.Reader) {
+                inst.push(new CMP(new Address("A"), 1))
+                inst.push(new READ(tnz, "A"))
+            } else {
+                const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false
+                if (calling) {
+                    call.set(inst.push(new STACK(tnz.name, [])), tnz)
+                } else {
+                    (tnz as Pack).compile(stack, inst, call, nep)
+                }
+            }
+        }
+        inst.push(new PUSH(this));
+        (inst[w - 3] as SIT).mov = w - inst.length - 3
+        for (const i of call) {
+            if (i[1].id == this.id) {
+                (inst[i[0] - 1] as STACK).inst = inst.slice(w - 1)
+                call.delete(i[0])
+            }
+        }
+        for(const i of nep){
+            if(i[1] == this.id){
+                (inst[i[0]-1] as NEP).mov = i[0] - w + 1
+                nep.delete(i[0])
+            }
+        }
+        stack.pop()
+        return inst
     }
     New(): WrapperSerial {
         const C = new WrapperSerial(this.name, this.children)
@@ -305,8 +354,40 @@ export class Group extends Pack {
     ) {
         super(name)
     }
-    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>): Instruction[] {
-        return []
+    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
+        stack.push(this)
+        const w = inst.push(new POP())
+        for (let i = this.children.length - 1; i >= 0; i--) {
+            const tnz = this.children[i]
+            inst.push(new SIT(inst.length - w))
+            inst.push(new SADD())
+            if (tnz.type == TokenizerType.Reader) {
+                inst.push(new CMP(new Address("A"), 1))
+                inst.push(new READ(tnz, "A"))
+            } else {
+                const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false
+                if (calling) {
+                    call.set(inst.push(new STACK(tnz.name, [])), tnz)
+                } else {
+                    (tnz as Pack).compile(stack, inst, call, nep)
+                }
+            }
+        }
+        inst.push(new PUSH(this));
+        for (const i of call) {
+            if (i[1].id == this.id) {
+                (inst[i[0] - 1] as STACK).inst = inst.slice(w - 1)
+                call.delete(i[0])
+            }
+        }
+        for(const i of nep){
+            if(i[1] == this.id){
+                (inst[i[0]-1] as NEP).mov = i[0] - w + 1
+                nep.delete(i[0])
+            }
+        }
+        stack.pop()
+        return inst
     }
     New(): Group {
         const C = new Group(this.name, this.children)
@@ -325,7 +406,7 @@ export class GroupSerial extends Pack {
     ) {
         super(name)
     }
-    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>): Instruction[] {
+    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
         stack.push(this)
         inst.push(new SET(new Address("B", 0)))
         inst.push(new SIT(0))
@@ -333,14 +414,18 @@ export class GroupSerial extends Pack {
         const w = inst.push(new POP())
         for (let i = this.children.length - 1; i >= 0; i--) {
             const tnz = this.children[i]
+            inst.push(new SIT(inst.length - w))
             inst.push(new SADD())
             if (tnz.type == TokenizerType.Reader) {
-                inst.push(new SIT(inst.length - w))
-                inst.push(new CMP("A", 1))
+                inst.push(new CMP(new Address("A"), 1))
                 inst.push(new READ(tnz, "A"))
             } else {
-                inst.push(new SIF(inst.length - w));
-                (tnz as Pack).compile(stack, inst, call)
+                const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false
+                if (calling) {
+                    call.set(inst.push(new STACK(tnz.name, [])), tnz)
+                } else {
+                    (tnz as Pack).compile(stack, inst, call, nep)
+                }
             }
         }
         inst.push(new PUSH(this));
@@ -349,6 +434,12 @@ export class GroupSerial extends Pack {
             if (i[1].id == this.id) {
                 (inst[i[0] - 1] as STACK).inst = inst.slice(w - 1)
                 call.delete(i[0])
+            }
+        }
+        for(const i of nep){
+            if(i[1] == this.id){
+                (inst[i[0]-1] as NEP).mov = i[0] - w + 1
+                nep.delete(i[0])
             }
         }
         stack.pop()

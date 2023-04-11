@@ -15,6 +15,11 @@ export class Stack<T> {
     constructor(items: T[] = []) {
         this.add(items)
     }
+    New(): Stack<T> {
+        const C = new Stack<T>()
+        C.array = Object.assign({}, this.array)
+        return C
+    }
     add(items: T[] | T) {
         const items_ = [items].flat(1) as T[]
         for (let i = 0; i < items_.length; i++) {

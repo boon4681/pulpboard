@@ -46,9 +46,11 @@ export class POP implements Instruction {
 
 export class NEP implements Instruction {
     type = InstructionType.NEP
-    constructor() { }
+    constructor(
+        public mov: number
+    ) { }
     str(): string {
-        return ''
+        return '' + this.mov
     }
 }
 
