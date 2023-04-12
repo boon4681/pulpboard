@@ -1,7 +1,7 @@
 import chalk from "chalk"
 import { Input } from "./input"
-import { CMP, Instruction, InstructionType, SIF, SIT, POP, PUSH, READ, SADD, SET, TEST, NEP, SKIP, ADD, ICMP, STACK } from "./instruction"
-import { Address, Stack } from "./memo"
+import { CMP, Instruction, InstructionType, SIF, SIT, POP, PUSH, READ, SADD, SET, TEST, NEP, SKIP, STACK } from "./instruction"
+import { Stack } from "./memo"
 
 let id = 1
 
@@ -186,7 +186,7 @@ export class Wrapper extends Pack {
                 inst.push(new SIF(inst.length - w))
             }
             if (tnz.type == TokenizerType.Reader) {
-                inst.push(new CMP(new Address("A"), 1))
+                inst.push(new CMP("A",1))
                 inst.push(new READ(tnz, "A"))
             } else {
                 const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false
@@ -249,7 +249,7 @@ export class IFWrapper extends Pack {
                 inst.push(new SIF(inst.length - w))
             }
             if (tnz.type == TokenizerType.Reader) {
-                inst.push(new CMP(new Address("A"), 1))
+                inst.push(new CMP("A",1))
                 inst.push(new READ(tnz, "A"))
             } else {
                 const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false
@@ -262,7 +262,7 @@ export class IFWrapper extends Pack {
         }
         inst.push(new PUSH(this))
         inst.push(new SIT(inst.length - w + 2 + (nep_enable ? 1 : 0)))
-        inst.push(new CMP(new Address("T"), 0))
+        inst.push(new CMP("T",0))
         inst.push(new TEST(this.condition, "T"))
         for (const i of call) {
             if (i[1].id == this.id) {
@@ -298,9 +298,9 @@ export class WrapperSerial extends Pack {
     }
     compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
         stack.push(this)
-        inst.push(new SET(new Address("B", 0)))
+        inst.push(new SET("B", 0))
         inst.push(new SIT(0))
-        inst.push(new SET(new Address("B", 1)))
+        inst.push(new SET("B", 1))
         const w = inst.push(new POP())
         for (let i = this.children.length - 1; i >= 0; i--) {
             const tnz = this.children[i]
@@ -309,7 +309,7 @@ export class WrapperSerial extends Pack {
                 inst.push(new SIF(inst.length - w))
             }
             if (tnz.type == TokenizerType.Reader) {
-                inst.push(new CMP(new Address("A"), 1))
+                inst.push(new CMP("A", 1))
                 inst.push(new READ(tnz, "A"))
             } else {
                 const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false
@@ -362,7 +362,7 @@ export class Group extends Pack {
             inst.push(new SIT(inst.length - w))
             inst.push(new SADD())
             if (tnz.type == TokenizerType.Reader) {
-                inst.push(new CMP(new Address("A"), 1))
+                inst.push(new CMP("A", 1))
                 inst.push(new READ(tnz, "A"))
             } else {
                 const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false
@@ -408,16 +408,16 @@ export class GroupSerial extends Pack {
     }
     compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
         stack.push(this)
-        inst.push(new SET(new Address("B", 0)))
+        inst.push(new SET("B",0))
         inst.push(new SIT(0))
-        inst.push(new SET(new Address("B", 1)))
+        inst.push(new SET("B", 1))
         const w = inst.push(new POP())
         for (let i = this.children.length - 1; i >= 0; i--) {
             const tnz = this.children[i]
             inst.push(new SIT(inst.length - w))
             inst.push(new SADD())
             if (tnz.type == TokenizerType.Reader) {
-                inst.push(new CMP(new Address("A"), 1))
+                inst.push(new CMP("A", 1))
                 inst.push(new READ(tnz, "A"))
             } else {
                 const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false

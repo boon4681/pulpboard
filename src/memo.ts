@@ -1,24 +1,12 @@
 import { Instruction } from "./instruction"
 import { Tokenizer } from "./tokenizer"
 
-export class Address {
-    constructor(
-        public location: string,
-        public assigned: number = 0
-    ) { }
-}
-
 export class Stack<T> {
     array: T[] = []
     pointer = 0
     size: number = 0
     constructor(items: T[] = []) {
         this.add(items)
-    }
-    New(): Stack<T> {
-        const C = new Stack<T>()
-        C.array = Object.assign({}, this.array)
-        return C
     }
     add(items: T[] | T) {
         const items_ = [items].flat(1) as T[]
@@ -39,7 +27,7 @@ export class Stack<T> {
     pop() {
         const pop = this.array.pop()
         this.size = this.array.length
-        if (this.pointer > 0 && this.pointer == this.array.length-1) this.pointer--
+        if (this.pointer > 0 && this.pointer == this.array.length - 1) this.pointer--
         return pop
     }
     get(i: number = 0): T {
@@ -63,10 +51,10 @@ export class Memory {
     public stack: Stack<Tokenizer> = new Stack()
     public inst: Stack<Instruction> = new Stack()
     constructor() { }
-    public get_address(addr: Address) {
-        return this.global.get(addr.location)
+    public get_address(addr: string) {
+        return this.global.get(addr)
     }
-    public set_address(addr: Address) {
-        this.global.set(addr.location, addr.assigned)
+    public set_address(addr: string, data: number) {
+        this.global.set(addr, data)
     }
 }

@@ -2,7 +2,7 @@ import chalk from "chalk";
 import { SyntaxError } from "./error";
 import { Input } from "./input";
 import { CMP, END, Instruction, InstructionType, SIF, SIT, POP, PUSH, READ, SADD } from "./instruction";
-import { Address, Memory, Stack } from "./memo";
+import { Memory, Stack } from "./memo";
 import { box } from "./test";
 import { Group, IFWrapper, is_pack, Lexer, Pack, Reader, Token, Tokenizer, TokenizerType, Wrapper, WrapperSerial } from "./tokenizer";
 import { appendFileSync, readFileSync, writeFileSync } from "fs";
@@ -39,22 +39,20 @@ export class LexerBase implements Lexer {
         // console.log(this.tokens)
     }
     private merger(merge: number[], pack: Tokenizer) {
-        if (pack.features.merge) {
-            const removed = this.tokens.splice(merge.pop()!)
-            if (removed.length) {
-                const raw = removed.map(a => a.value).join('')
-                this.tokens.push(
-                    new Token(pack.name, raw, {
-                        start: removed[0].span.start,
-                        end: removed[removed.length - 1].span.end,
-                        range: [
-                            removed[0].span.range[0],
-                            removed[removed.length - 1].span.range[1]
-                        ],
-                        size: removed[removed.length - 1].span.range[1] - removed[0].span.range[0]
-                    })
-                )
-            }
+        const removed = this.tokens.splice(merge.pop()!)
+        if (removed.length) {
+            const raw = removed.map(a => a.value).join('')
+            this.tokens.push(
+                new Token(pack.name, raw, {
+                    start: removed[0].span.start,
+                    end: removed[removed.length - 1].span.end,
+                    range: [
+                        removed[0].span.range[0],
+                        removed[removed.length - 1].span.range[1]
+                    ],
+                    size: removed[removed.length - 1].span.range[1] - removed[0].span.range[0]
+                })
+            )
         }
     }
     run() {
@@ -110,7 +108,7 @@ export class LexerBase implements Lexer {
                             bool = 1
                         }
                         // console.log("bool",bool)
-                        this.memo.set_address(new Address(inst.variable, bool))
+                        this.memo.set_address(inst.variable, bool)
                     }
                     break
                 case InstructionType.PUSH:
@@ -134,6 +132,7 @@ export class LexerBase implements Lexer {
                         // this.memo.temp = 0
                         const pack = this.memo.stack.get() as Pack
                         const have_parent = this.memo.stack.size > 1
+                        const parent = this.memo.stack.get(-1)
                         // console.log(pack.index, this.memo.temp)
                         if (pack.children.length != pack.index) {
                             // console.log(pack)
@@ -144,12 +143,12 @@ export class LexerBase implements Lexer {
                             } else if (pack.index == 0 && pack.features.nullable) {
                                 // pass
                                 this.memo.temp = 1
-                            } else if (pack.index == 0 && this.memo.stack.get(-1)) {
+                            } else if (pack.index == 0 && parent) {
                                 // pass
                                 this.memo.temp = 1
                             } else if (pack.type == TokenizerType.Group || pack.type == TokenizerType.GroupSerial || pack.type == TokenizerType.WrapperSerial) {
                                 if (this.memo.global.get("B") == 1) this.memo.temp = 0
-                            } else if (have_parent && !(this.memo.stack.get(-1).type == TokenizerType.WrapperSerial || this.memo.stack.get(-1).type == TokenizerType.GroupSerial)) {
+                            } else if (have_parent && !(parent.type == TokenizerType.WrapperSerial || parent.type == TokenizerType.GroupSerial)) {
                                 // this.memo.temp = 0
                             } else {
                                 console.log(this.tokens.map(a => a.value))
@@ -159,7 +158,9 @@ export class LexerBase implements Lexer {
                         }
                         // console.log(pack.index, this.memo.temp)
                         // console.log(pack.index,this.memo.temp)
-                        this.merger(merge, pack)
+                        if (pack.features.merge) {
+                            this.merger(merge, pack)
+                        }
                         const pop = this.source.pop()
                         this.source.set(pop)
                         this.memo.stack.pop()
@@ -175,20 +176,24 @@ export class LexerBase implements Lexer {
                     break
                 case InstructionType.STACK:
                     {
-                        inst_stack.push(new Stack<Instruction>().add_direct(inst.inst))
+                        const stack = new Stack<Instruction>()
+                        stack.array = inst.inst
+                        stack.size = inst.inst.length
+                        // console.log(stack)
+                        inst_stack.push(stack)
                         continue
                     }
                     break
                 case InstructionType.TEST:
                     if (inst.tester.test(this)) {
-                        this.memo.set_address(new Address(inst.variable, 1))
+                        this.memo.set_address(inst.variable, 1)
                     } else {
-                        this.memo.set_address(new Address(inst.variable, 0))
+                        this.memo.set_address(inst.variable, 0)
                     }
                     break
                 case InstructionType.SET:
                     {
-                        this.memo.set_address(inst.address)
+                        this.memo.set_address(inst.address,inst.data)
                     }
                     break
                 case InstructionType.NEP:
@@ -197,20 +202,13 @@ export class LexerBase implements Lexer {
                         this.source.set(pop)
 
                         const pack = this.memo.stack.get()
-                        this.merger(merge, pack)
+                        if (pack.features.merge) {
+                            this.merger(merge, pack)
+                        }
 
                         this.memo.stack.pop()
                         exec.pointer += inst.mov
                         this.memo.temp = 0
-                    }
-                    break
-                case InstructionType.ADD:
-                    {
-                        if (!this.memo.get_address(inst.address)) {
-                            this.memo.set_address(new Address(inst.address.location, 0))
-                        }
-                        const v = this.memo.get_address(inst.address)! + inst.address.assigned
-                        this.memo.set_address(new Address(inst.address.location, v))
                     }
                     break
                 default:
@@ -228,7 +226,9 @@ export class LexerBase implements Lexer {
     }
 }
 // const input = new Input("", new Array(2000).fill("").map((a, i) => i < 1000 ? '(' : ')').join(""))
-const input = new Input("", readFileSync("./test/test.box", "utf8"))
+const input = new Input("", readFileSync("./test/test.box", {
+    encoding: "utf8"
+}))
 const lexer = new LexerBase(input)
 function main() {
     const t0 = performance.now();

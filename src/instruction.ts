@@ -1,5 +1,5 @@
 import { Input } from "./input";
-import { Address, Memory } from "./memo"
+import { Memory } from "./memo"
 import { Lexer, Reader, Tokenizer, TokenizerType } from "./tokenizer"
 
 export enum InstructionType {
@@ -8,10 +8,8 @@ export enum InstructionType {
     NEP,
     READ,
     TEST,
-    ADD,
     SET,
     CMP,
-    ICMP,
     SKIP,
     SIT,
     SIF,
@@ -76,50 +74,27 @@ export class TEST implements Instruction {
     }
 }
 
-export class ADD implements Instruction {
-    type = InstructionType.ADD
-    constructor(
-        public address: Address
-    ) { }
-    str(): string {
-        return this.address.location + ', ' + this.address.assigned
-    }
-}
-
 export class SET implements Instruction {
     type = InstructionType.SET
     constructor(
-        public address: Address
+        public address: string,
+        public data: number
     ) { }
     str(): string {
-        return this.address.location + ', ' + this.address.assigned
+        return this.address + ', ' + this.data
     }
 }
 
 export class CMP implements Instruction {
     type = InstructionType.CMP
     constructor(
-        public address_a: Address | number | string,
-        public address_b: Address | number | string
+        public address_a: number | string,
+        public address_b: number | string
     ) { }
     str(): string {
-        let a
-        let b
-        if (this.address_a instanceof Address) a = this.address_a.location
-        else a = this.address_a
-        if (this.address_b instanceof Address) b = this.address_b.location
-        else b = this.address_b
+        let a = this.address_a
+        let b = this.address_b
         return a + ', ' + b
-    }
-}
-
-export class ICMP implements Instruction {
-    type = InstructionType.ICMP
-    constructor(
-        public id: number,
-    ) { }
-    str(): string {
-        return this.id.toString()
     }
 }
 
