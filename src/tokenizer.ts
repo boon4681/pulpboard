@@ -186,7 +186,7 @@ export class Wrapper extends Pack {
                 inst.push(new SIF(inst.length - w))
             }
             if (tnz.type == TokenizerType.Reader) {
-                inst.push(new CMP("A",1))
+                inst.push(new CMP("A", 1))
                 inst.push(new READ(tnz, "A"))
             } else {
                 const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false
@@ -207,9 +207,9 @@ export class Wrapper extends Pack {
                 call.delete(i[0])
             }
         }
-        for(const i of nep){
-            if(i[1] == this.id){
-                (inst[i[0]-1] as NEP).mov = i[0] - w + 1
+        for (const i of nep) {
+            if (i[1] == this.id) {
+                (inst[i[0] - 1] as NEP).mov = i[0] - w + 1
                 nep.delete(i[0])
             }
         }
@@ -249,7 +249,7 @@ export class IFWrapper extends Pack {
                 inst.push(new SIF(inst.length - w))
             }
             if (tnz.type == TokenizerType.Reader) {
-                inst.push(new CMP("A",1))
+                inst.push(new CMP("A", 1))
                 inst.push(new READ(tnz, "A"))
             } else {
                 const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false
@@ -262,7 +262,7 @@ export class IFWrapper extends Pack {
         }
         inst.push(new PUSH(this))
         inst.push(new SIT(inst.length - w + 2 + (nep_enable ? 1 : 0)))
-        inst.push(new CMP("T",0))
+        inst.push(new CMP("T", 0))
         inst.push(new TEST(this.condition, "T"))
         for (const i of call) {
             if (i[1].id == this.id) {
@@ -270,9 +270,9 @@ export class IFWrapper extends Pack {
                 call.delete(i[0])
             }
         }
-        for(const i of nep){
-            if(i[1] == this.id){
-                (inst[i[0]-1] as NEP).mov = i[0] - w + 1
+        for (const i of nep) {
+            if (i[1] == this.id) {
+                (inst[i[0] - 1] as NEP).mov = i[0] - w + 1
                 nep.delete(i[0])
             }
         }
@@ -328,9 +328,9 @@ export class WrapperSerial extends Pack {
                 call.delete(i[0])
             }
         }
-        for(const i of nep){
-            if(i[1] == this.id){
-                (inst[i[0]-1] as NEP).mov = i[0] - w + 1
+        for (const i of nep) {
+            if (i[1] == this.id) {
+                (inst[i[0] - 1] as NEP).mov = i[0] - w + 1
                 nep.delete(i[0])
             }
         }
@@ -380,9 +380,9 @@ export class Group extends Pack {
                 call.delete(i[0])
             }
         }
-        for(const i of nep){
-            if(i[1] == this.id){
-                (inst[i[0]-1] as NEP).mov = i[0] - w + 1
+        for (const i of nep) {
+            if (i[1] == this.id) {
+                (inst[i[0] - 1] as NEP).mov = i[0] - w + 1
                 nep.delete(i[0])
             }
         }
@@ -408,7 +408,7 @@ export class GroupSerial extends Pack {
     }
     compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
         stack.push(this)
-        inst.push(new SET("B",0))
+        inst.push(new SET("B", 0))
         inst.push(new SIT(0))
         inst.push(new SET("B", 1))
         const w = inst.push(new POP())
@@ -436,9 +436,9 @@ export class GroupSerial extends Pack {
                 call.delete(i[0])
             }
         }
-        for(const i of nep){
-            if(i[1] == this.id){
-                (inst[i[0]-1] as NEP).mov = i[0] - w + 1
+        for (const i of nep) {
+            if (i[1] == this.id) {
+                (inst[i[0] - 1] as NEP).mov = i[0] - w + 1
                 nep.delete(i[0])
             }
         }
