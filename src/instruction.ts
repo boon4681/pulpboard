@@ -149,7 +149,9 @@ export class STACK implements Instruction {
 
     constructor(
         public name: string,
-        public inst: Instruction[]
+        public start: number,
+        public size: number,
+        public pointer: number
     ) { }
     str(): string {
         return this.name

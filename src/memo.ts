@@ -31,21 +31,20 @@ export class Stack<T> {
         return pop
     }
     get(i: number = 0): T {
-        return this.array[this.array.length - 1 - this.pointer + i]
+        return this.array.slice(- 1 - this.pointer + i)[0]
     }
     next() {
         this.pointer++
-        return this.array[this.array.length - 1 - this.pointer]
+        return this.array.slice(- 1 - this.pointer)
     }
     back() {
         if (this.pointer > 0) this.pointer--
-        return this.array[this.array.length - 1 - this.pointer]
+        return this.array.slice(- 1 - this.pointer)
     }
 }
 
 export class Memory {
     temp: number = 0
-    Sid: number = 0
     public global: Map<string, number> = new Map()
     public scheme: Tokenizer[] = []
     public stack: Stack<Tokenizer> = new Stack()

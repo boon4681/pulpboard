@@ -17,10 +17,15 @@
     "scripts": {
         "build": "tsc -d -w",
         "dev": "node -r @swc-node/register ./src/index.ts",
-        "debug": "node --inspect-brk -r @swc-node/register ./src/index.ts"
+        "debug": "node --inspect-brk -r @swc-node/register ./src/index.ts",
+        "bdebug": "node --inspect-brk ./dist/index.js",
+        "test": "node -r @swc-node/register ./src/json.ts",
+        "test-brk": "node --inspect-brk -r @swc-node/register ./src/json.ts"
     },
     "dependencies": {
+        "@types/benchmark": "^2.1.2",
         "@types/node": "^18.7.13",
+        "benchmark": "^2.1.4",
         "chalk": "4.1.2"
     },
     "devDependencies": {

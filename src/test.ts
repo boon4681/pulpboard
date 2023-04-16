@@ -149,7 +149,7 @@ if_stats.add([
 ])
 
 if_stats_block.add([
-    new GroupSerial('lexer.context').add([
+    new GroupSerial('if.context').add([
         expr,
         Hidden,
         if_stats,
@@ -173,9 +173,7 @@ qouted_strings.add([
             new Reader("text", /[^\\\'\n\r]+/),
             new Reader("escape", /\\[tbrn\"\'\\]/)
         ]).set("nullable", true),
-        new Wrapper('test').add([
-            new Reader('strings.qouted.close', /\'/)
-        ]),
+        new Reader('strings.qouted.close', /\'/)
     ])
 ])
 

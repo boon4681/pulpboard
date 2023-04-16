@@ -12,6 +12,7 @@
         "skipLibCheck": true,
         "allowSyntheticDefaultImports": true,
         "resolveJsonModule": true,
+        "removeComments": true,
         "moduleResolution": "node",
         "outDir": "./dist"
     },

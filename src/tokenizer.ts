@@ -32,7 +32,6 @@ export class Token {
 }
 
 export interface Lexer {
-    stack: Tokenizer[]
     scheme: Tokenizer[]
     tokens: Token[]
     source: Input
@@ -191,7 +190,7 @@ export class Wrapper extends Pack {
             } else {
                 const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false
                 if (calling) {
-                    call.set(inst.push(new STACK(tnz.name, [])), tnz)
+                    call.set(inst.push(new STACK(tnz.name, 0, 0, 0)), tnz)
                 } else {
                     (tnz as Pack).compile(stack, inst, call, nep)
                 }
@@ -203,7 +202,9 @@ export class Wrapper extends Pack {
         }
         for (const i of call) {
             if (i[1].id == this.id) {
-                (inst[i[0] - 1] as STACK).inst = inst.slice(w - 1)
+                const stack = inst[i[0] - 1] as STACK
+                stack.start = w
+                stack.size = inst.length - w + 1
                 call.delete(i[0])
             }
         }
@@ -254,7 +255,7 @@ export class IFWrapper extends Pack {
             } else {
                 const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false
                 if (calling) {
-                    call.set(inst.push(new STACK(tnz.name, [])), tnz)
+                    call.set(inst.push(new STACK(tnz.name, 0, 0, 0)), tnz)
                 } else {
                     (tnz as Pack).compile(stack, inst, call, nep)
                 }
@@ -266,7 +267,9 @@ export class IFWrapper extends Pack {
         inst.push(new TEST(this.condition, "T"))
         for (const i of call) {
             if (i[1].id == this.id) {
-                (inst[i[0] - 1] as STACK).inst = inst.slice(w - 1)
+                const stack = inst[i[0] - 1] as STACK
+                stack.start = w
+                stack.size = inst.length - w + 1
                 call.delete(i[0])
             }
         }
@@ -314,7 +317,7 @@ export class WrapperSerial extends Pack {
             } else {
                 const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false
                 if (calling) {
-                    call.set(inst.push(new STACK(tnz.name, [])), tnz)
+                    call.set(inst.push(new STACK(tnz.name, 0, 0, 0)), tnz)
                 } else {
                     (tnz as Pack).compile(stack, inst, call, nep)
                 }
@@ -324,7 +327,9 @@ export class WrapperSerial extends Pack {
         (inst[w - 3] as SIT).mov = w - inst.length - 3
         for (const i of call) {
             if (i[1].id == this.id) {
-                (inst[i[0] - 1] as STACK).inst = inst.slice(w - 1)
+                const stack = inst[i[0] - 1] as STACK
+                stack.start = w
+                stack.size = inst.length - w + 1
                 call.delete(i[0])
             }
         }
@@ -367,7 +372,7 @@ export class Group extends Pack {
             } else {
                 const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false
                 if (calling) {
-                    call.set(inst.push(new STACK(tnz.name, [])), tnz)
+                    call.set(inst.push(new STACK(tnz.name, 0, 0, 0)), tnz)
                 } else {
                     (tnz as Pack).compile(stack, inst, call, nep)
                 }
@@ -376,7 +381,9 @@ export class Group extends Pack {
         inst.push(new PUSH(this));
         for (const i of call) {
             if (i[1].id == this.id) {
-                (inst[i[0] - 1] as STACK).inst = inst.slice(w - 1)
+                const stack = inst[i[0] - 1] as STACK
+                stack.start = w
+                stack.size = inst.length - w + 1
                 call.delete(i[0])
             }
         }
@@ -422,7 +429,7 @@ export class GroupSerial extends Pack {
             } else {
                 const calling = stack.find((a, i) => a === tnz && i != stack.length - 1) ? true : tnz === this ? true : false
                 if (calling) {
-                    call.set(inst.push(new STACK(tnz.name, [])), tnz)
+                    call.set(inst.push(new STACK(tnz.name, 0, 0, 0)), tnz)
                 } else {
                     (tnz as Pack).compile(stack, inst, call, nep)
                 }
@@ -432,7 +439,9 @@ export class GroupSerial extends Pack {
         (inst[w - 3] as SIT).mov = w - inst.length - 3
         for (const i of call) {
             if (i[1].id == this.id) {
-                (inst[i[0] - 1] as STACK).inst = inst.slice(w - 1)
+                const stack = inst[i[0] - 1] as STACK
+                stack.start = w
+                stack.size = inst.length - w + 1
                 call.delete(i[0])
             }
         }

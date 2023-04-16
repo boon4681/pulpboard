@@ -1,7 +1,7 @@
 import chalk from "chalk";
-import { SyntaxError } from "./error";
+import { SyntaxError, UnknownSyntax } from "./error";
 import { Input } from "./input";
-import { CMP, END, Instruction, InstructionType, SIF, SIT, POP, PUSH, READ, SADD } from "./instruction";
+import { CMP, END, Instruction, InstructionType, SIF, SIT, POP, PUSH, READ, SADD, STACK } from "./instruction";
 import { Memory, Stack } from "./memo";
 import { box } from "./test";
 import { Group, IFWrapper, is_pack, Lexer, Pack, Reader, Token, Tokenizer, TokenizerType, Wrapper, WrapperSerial } from "./tokenizer";
@@ -22,19 +22,19 @@ function print(gg: Stack<Instruction>, out: boolean = false) {
 
 
 export class LexerBase implements Lexer {
-    stack: Tokenizer[] = [];
     scheme: Tokenizer[] = [];
     tokens: Token[] = [];
     index: number = 0;
     memo: Memory = new Memory()
     constructor(
-        public source: Input
+        scheme: Pack,
+        public source: Input,
     ) {
         this.memo.scheme.push()
         this.memo.inst.add(new END())
-        this.memo.inst.add_direct(box.compile([], [], new Map<number, Tokenizer>(), new Map<number, number>()))
-        console.log(chalk.red("############\nINDEX.ts file\n############"))
-        writeFileSync("debug3.txt", print(this.memo.inst).join("\n"))
+        this.memo.inst.add_direct(scheme.compile([], [], new Map<number, Tokenizer>(), new Map<number, number>()))
+        // console.log(chalk.red("############\nINDEX.ts file\n############"))
+        // writeFileSync("debug3.txt", print(this.memo.inst).join("\n"))
         // return
         // console.log(this.tokens)
     }
@@ -55,15 +55,39 @@ export class LexerBase implements Lexer {
             )
         }
     }
+    private nullable_rev(): [boolean, Pack] {
+        let i = 1
+        let nullable = false
+        let p: Pack = this.memo.stack.get(-i) as Pack
+        while (i < this.memo.stack.size) {
+            p = this.memo.stack.get(-i) as Pack
+            if (p.index == 0) break
+            if (p.features.nullable) {
+                nullable = true
+                break
+            }
+            i++
+        }
+        return [nullable, p]
+    }
     run() {
         const merge: number[] = []
-        const inst_stack: (Stack<Instruction>)[] = [this.memo.inst]
+        const INST = this.memo.inst
+        const inst_stack: ({ start: number, size: number, pointer: number })[] = [
+            {
+                start: 0,
+                size: INST.size,
+                pointer: 0
+            }
+        ]
         // writeFileSync("./test/debug.txt", "")
-        let exec: Stack<Instruction> = inst_stack[inst_stack.length - 1]
-        while (inst_stack.length > 0 && inst_stack[inst_stack.length - 1].size > 0) {
+        let exec: { start: number, size: number, pointer: number } = inst_stack[0]
+        while (inst_stack.length && inst_stack[inst_stack.length - 1].size) {
             exec = inst_stack[inst_stack.length - 1]
-            const inst = exec.get() as any
-            if(exec.get().type == InstructionType.END){
+            const inst = INST.array[exec.start + exec.size - exec.pointer - 1] as any
+            // console.log((INST.size - exec.start) - exec.size + exec.pointer)
+            // throw new Error
+            if (inst.type == InstructionType.END) {
                 break
             }
             // const log = chalk.yellow((exec.pointer + 1 + 10000).toString().slice(1)) + " " + new Array(this.memo.stack.size + (inst.type == InstructionType.POP ? -1 : 0)).fill('    ').join('') + chalk.red(inst.constructor.name + ' ' + inst.str())
@@ -74,23 +98,22 @@ export class LexerBase implements Lexer {
             // console.log(new Array(space + (inst.type == InstructionType.POP ? -1 : 0)).fill('    ').join('') + chalk.red(inst.constructor.name + ' ' + inst.str()))
             switch (inst.type) {
                 case InstructionType.SADD:
-                    (this.memo.stack.get() as Pack).index++
+                    {
+                        (this.memo.stack.get() as Pack).index++
+                    }
+                    break
+                case InstructionType.SIF:
+                    {
+                        if (this.memo.temp != 0) {
+                            exec.pointer += inst.mov
+                        }
+                    }
                     break
                 case InstructionType.CMP:
                     {
                         const a = (typeof inst.address_a == "number") ? inst.address_a : this.memo.get_address(inst.address_a)
                         const b = (typeof inst.address_b == "number") ? inst.address_b : this.memo.get_address(inst.address_b)
                         this.memo.temp = a - b
-                    }
-                    break
-                case InstructionType.SIF:
-                    if (this.memo.temp != 0) {
-                        exec.pointer += inst.mov
-                    }
-                    break
-                case InstructionType.SIT:
-                    if (this.memo.temp == 0) {
-                        exec.pointer += inst.mov
                     }
                     break
                 case InstructionType.READ:
@@ -122,7 +145,7 @@ export class LexerBase implements Lexer {
                             merge.push(this.tokens.length)
                         }
                         // console.log(this.memo.stack.pointer)
-                        this.memo.Sid = this.memo.stack.get().id
+                        // this.memo.Sid = this.memo.stack.get().id
                         // console.log(inst.tokenizer.id)
                         // console.log(this.memo.Sid)
                     }
@@ -136,23 +159,29 @@ export class LexerBase implements Lexer {
                         // console.log(pack.index, this.memo.temp)
                         if (pack.children.length != pack.index) {
                             // console.log(pack)
+                            // appendFileSync("./test/debug.txt", 'VERY DEBUG' + this.memo.temp + JSON.stringify([...this.memo.global.entries()]) + '\n')
                             const error = pack.children[pack.index]
                             if (this.memo.global.get("B") == 1 && pack.index == 0) {
-                                // pass
                                 this.memo.temp = 1
                             } else if (pack.index == 0 && pack.features.nullable) {
-                                // pass
                                 this.memo.temp = 1
-                            } else if (pack.index == 0 && parent) {
-                                // pass
+                            } else if (pack.index == 0 && have_parent) {
                                 this.memo.temp = 1
                             } else if (pack.type == TokenizerType.Group || pack.type == TokenizerType.GroupSerial || pack.type == TokenizerType.WrapperSerial) {
                                 if (this.memo.global.get("B") == 1) this.memo.temp = 0
                             } else if (have_parent && !(parent.type == TokenizerType.WrapperSerial || parent.type == TokenizerType.GroupSerial)) {
-                                // this.memo.temp = 0
+                                const [nullable, p] = this.nullable_rev()
+                                // appendFileSync("./test/debug.txt", "FUCKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK\n")
+                                // appendFileSync("./test/debug.txt", nullable + ' ' + p.name + "\n")
+                                // appendFileSync("./test/debug.txt", this.memo.temp + JSON.stringify([...this.memo.global.entries()]) + '\n')
+                                if (!nullable) {
+                                    throw new SyntaxError('2', this.source, error)
+                                }
+                                if (pack.index > 0 && parent.type != TokenizerType.Group && (pack.type == TokenizerType.Wrapper || pack.type == TokenizerType.IFWrapper)) {
+                                    throw new SyntaxError('2', this.source, error)
+                                }
                             } else {
                                 console.log(this.tokens.map(a => a.value))
-                                console.log(this.memo.stack.array.map((a: any) => [a.name, a.features, a.index, a.children.length]))
                                 throw new SyntaxError('1', this.source, error)
                             }
                         }
@@ -161,11 +190,14 @@ export class LexerBase implements Lexer {
                         if (pack.features.merge) {
                             this.merger(merge, pack)
                         }
-                        const pop = this.source.pop()
-                        this.source.set(pop)
+                        this.source.set(this.source.pop())
                         this.memo.stack.pop()
-                        if (this.memo.stack.size > 0) {
-                            this.memo.Sid = this.memo.stack.get().id
+                    }
+                    break
+                case InstructionType.SIT:
+                    {
+                        if (this.memo.temp == 0) {
+                            exec.pointer += inst.mov
                         }
                     }
                     break
@@ -176,11 +208,12 @@ export class LexerBase implements Lexer {
                     break
                 case InstructionType.STACK:
                     {
-                        const stack = new Stack<Instruction>()
-                        stack.array = inst.inst
-                        stack.size = inst.inst.length
-                        // console.log(stack)
-                        inst_stack.push(stack)
+                        // console.log("STACTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT")
+                        inst_stack.push({
+                            start: inst.start,
+                            size: inst.size,
+                            pointer: 0
+                        })
                         continue
                     }
                     break
@@ -193,13 +226,13 @@ export class LexerBase implements Lexer {
                     break
                 case InstructionType.SET:
                     {
-                        this.memo.set_address(inst.address,inst.data)
+                        this.memo.set_address(inst.address, inst.data)
                     }
                     break
                 case InstructionType.NEP:
                     {
-                        const pop = this.source.pop()
-                        this.source.set(pop)
+
+                        this.source.set(this.source.pop())
 
                         const pack = this.memo.stack.get()
                         if (pack.features.merge) {
@@ -215,26 +248,29 @@ export class LexerBase implements Lexer {
                     // console.log(inst)
                     throw new Error("Unknown")
             }
-            exec.next()
+            exec.pointer++
             if (exec.size == exec.pointer) {
-                inst_stack.pop()
+                inst_stack.length--
                 if (inst_stack.length > 0) {
-                    inst_stack[inst_stack.length - 1].next()
+                    inst_stack[inst_stack.length - 1].pointer++
                 }
             }
+        }
+        if (!this.source.eof()) {
+            throw new UnknownSyntax("3", this.source)
         }
     }
 }
 // const input = new Input("", new Array(2000).fill("").map((a, i) => i < 1000 ? '(' : ')').join(""))
-const input = new Input("", readFileSync("./test/test.box", {
-    encoding: "utf8"
-}))
-const lexer = new LexerBase(input)
-function main() {
-    const t0 = performance.now();
-    lexer.run()
-    const t1 = performance.now();
-    console.log(lexer.tokens)
-    console.log(`${t1 - t0} milliseconds.`);
-}
-main()
+// const input = new Input("./test/test.box", readFileSync("./test/test.box", {
+//     encoding: "utf8"
+// }))
+// const lexer = new LexerBase(input)
+// function main() {
+//     const t0 = performance.now();
+//     lexer.run()
+//     const t1 = performance.now();
+//     console.log(lexer.tokens)
+//     console.log(`${t1 - t0} milliseconds.`);
+// }
+// main()

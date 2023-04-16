@@ -92,10 +92,19 @@ export class Input {
         return value
     }
 
+    private find_newline(str: string){
+        const list:number[] = []
+        for (let i = 0; i < str.length; i++) {
+            if(str.charCodeAt(i) == 10){
+                list.push(i)
+            }
+        }
+        return list.length > 0 ? list : undefined
+    }
+
     private update_line(step: number) {
         const t = this.pan([-step, 0], true)
-        const m = t.match(/\n/gm)
-        const c = t.split("\n")
+        const m = this.find_newline(t)
         if (m) {
             if (step >= 0) {
                 this.line += m.length
@@ -103,7 +112,7 @@ export class Input {
                 this.line -= m.length
             }
             this.line_index = this.index
-            this.column = c[c.length-1].length
+            this.column = t.length - m[m.length-1]
         } else{
             this.column += step
         }
@@ -153,7 +162,7 @@ export class Input {
     }
 
     pan(range: number | [number, number], clamp?: boolean) {
-        const value = [0, 0]
+        let value = [0, 0]
         if (typeof range == 'number') {
             if (range > 0) {
                 value[1] = range
@@ -161,8 +170,7 @@ export class Input {
                 value[0] = range
             }
         } else {
-            value[0] = range[0]
-            value[1] = range[1]
+            value = range
         }
         if (clamp) {
             return this.source.slice(this.clamp(value[0]), this.clamp(value[1])).replace(/\r/g,'')
