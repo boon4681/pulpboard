@@ -12,3 +12,6 @@ key.js
 /test
 inst.txt
 /src/json.ts
+/src/testc.ts
+/src/itest.ts
+/.vscode

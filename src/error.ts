@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { Input } from "./input";
-import { Reader, Tokenizer } from "./tokenizer";
+import { Reader, Tokenizer, TokenizerType } from "./tokenizer";
 
 export class SyntaxError extends Error {
     constructor(
@@ -21,7 +21,7 @@ export class SyntaxError extends Error {
             code[code.length - 1][0].length + Math.floor(code[code.length - 1][1].length / (whitespace ? 1 : 2)) + (whitespace ? 1 : 0)
         ).fill(' ').join('')
         const processed = code.map(a => chalk.blue(a[0] + '|') + a[1])
-        const tnz_name = tnz instanceof Reader ? '<regex ' + String(tnz.regex).toString() + '>' : tnz.name
+        const tnz_name = tnz.type == TokenizerType.Reader ? '<regex ' + String((tnz as Reader).regex).toString() + '>' : tnz.name
         super(
             message + '\n' +
             chalk.blue(`${source.name ? source.name : './bruh.box'}:${source.line}:${source.column}`) + '\n' +

@@ -88,7 +88,7 @@ export class SET implements Instruction {
 export class CMP implements Instruction {
     type = InstructionType.CMP
     constructor(
-        public address_a: number | string,
+        public address_a: string,
         public address_b: number | string
     ) { }
     str(): string {

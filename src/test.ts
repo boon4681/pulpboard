@@ -1,4 +1,4 @@
-import { Group, GroupSerial, IFWrapper, Reader, Wrapper, WrapperSerial } from "./tokenizer"
+import { Group, GroupSerial, IFWrapper, Reader, Tokenizer, Wrapper, WrapperSerial } from "./tokenizer"
 
 const lexer = new Wrapper('lexer')
 const lexer_block = new Wrapper('lexer.block')
@@ -194,7 +194,6 @@ export const box = new GroupSerial("box", [
     decorator,
     Hidden,
 ])
-
 
 // const hidden = new Reader('whitespace', /[\s\r\n]*/).set('ignore', true)
 // const Hidden = new Reader('whitespace', /[\s\r\n]+/).set('ignore', true)

@@ -9,51 +9,53 @@ export class Stack<T> {
         this.add(items)
     }
     add(items: T[] | T) {
-        const items_ = [items].flat(1) as T[]
-        for (let i = 0; i < items_.length; i++) {
-            this.array.push(items_[items_.length - 1 - i])
-        }
-        this.size = this.array.length
-        return this
-    }
-    add_direct(items: T[] | T) {
-        const items_ = [items].flat(1) as T[]
-        for (let i = 0; i < items_.length; i++) {
-            this.array.push(items_[i])
+        if(Array.isArray(items)){
+            for (let i = 0; i < items.length; i++) {
+                this.array.push(items[items.length - 1 - i])
+            }
+        }else{
+            this.array.push(items)
         }
         this.size = this.array.length
         return this
     }
     pop() {
-        const pop = this.array.pop()
-        this.size = this.array.length
-        if (this.pointer > 0 && this.pointer == this.array.length - 1) this.pointer--
-        return pop
+        this.size = this.array.length-- - 1
+        if (this.pointer && this.pointer == this.array.length - 1) this.pointer--
     }
     get(i: number = 0): T {
+        return this.array[this.array.length - 1 - this.pointer + i]
         return this.array.slice(- 1 - this.pointer + i)[0]
-    }
-    next() {
-        this.pointer++
-        return this.array.slice(- 1 - this.pointer)
-    }
-    back() {
-        if (this.pointer > 0) this.pointer--
-        return this.array.slice(- 1 - this.pointer)
     }
 }
 
 export class Memory {
     temp: number = 0
-    public global: Map<string, number> = new Map()
-    public scheme: Tokenizer[] = []
     public stack: Stack<Tokenizer> = new Stack()
-    public inst: Stack<Instruction> = new Stack()
+    public inst: Instruction[] = []
+    public A: number = 0
+    public B: number = 0
+    public T: number = 0
     constructor() { }
     public get_address(addr: string) {
-        return this.global.get(addr)
+        switch (addr) {
+            case "A":
+                return this.A
+            case "B":
+                return this.B
+            case "T":
+                return this.T
+        }
+        return 0
     }
     public set_address(addr: string, data: number) {
-        this.global.set(addr, data)
+        switch (addr) {
+            case "A":
+                return this.A = data
+            case "B":
+                return this.B = data
+            case "T":
+                return this.T = data
+        }
     }
 }

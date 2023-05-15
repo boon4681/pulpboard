@@ -17,10 +17,10 @@
     "scripts": {
         "build": "tsc -d -w",
         "dev": "node -r @swc-node/register ./src/index.ts",
+        "bench": "node -r @swc-node/register ./src/itest.ts",
+        "bench:json": "node -r @swc-node/register ./src/json.ts",
         "debug": "node --inspect-brk -r @swc-node/register ./src/index.ts",
-        "bdebug": "node --inspect-brk ./dist/index.js",
-        "test": "node -r @swc-node/register ./src/json.ts",
-        "test-brk": "node --inspect-brk -r @swc-node/register ./src/json.ts"
+        "debug:build": "node ./dist/index.js"
     },
     "dependencies": {
         "@types/benchmark": "^2.1.2",

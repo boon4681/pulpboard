@@ -1,4 +1,4 @@
-type stack = { index: number, line: number, column: number, size: number, line_index: number, last_index: number }
+type stack = { index: number, line: number, column: number, size: number, last_index: number }
 
 export class Input {
     index: number = 0
@@ -6,7 +6,6 @@ export class Input {
     column: number = 0
     size: number
 
-    line_index: number = 0
 
     last_index: number = 0
 
@@ -25,7 +24,6 @@ export class Input {
             line: this.line,
             column: this.column,
             size: this.size,
-            line_index: this.line_index,
             last_index: this.last_index
         })
     }
@@ -36,7 +34,6 @@ export class Input {
             line: this.line,
             column: this.column,
             size: this.size,
-            line_index: this.line_index,
             last_index: this.last_index
         }
         const state = this.stack.shift()
@@ -45,7 +42,6 @@ export class Input {
             this.line = state.line
             this.column = state.column
             this.size = state.size
-            this.line_index = state.line_index
             this.last_index = state.last_index
         }
         return current
@@ -56,9 +52,8 @@ export class Input {
         this.line = state.line
         this.column = state.column
         this.size = state.size
-        this.line_index = state.line_index
         this.last_index = state.last_index
-    } 
+    }
 
     private validate_move(step: number) {
         const value = this.index + step
@@ -92,28 +87,28 @@ export class Input {
         return value
     }
 
-    private find_newline(str: string){
-        const list:number[] = []
+    private find_newline(str: string) {
+        let a = -1
+        let l = 0
         for (let i = 0; i < str.length; i++) {
-            if(str.charCodeAt(i) == 10){
-                list.push(i)
+            if (str.charCodeAt(i) == 10) {
+                a++
+                l = i
             }
         }
-        return list.length > 0 ? list : undefined
+        return a > -1 ? [a, l] : undefined
     }
 
-    private update_line(step: number) {
-        const t = this.pan([-step, 0], true)
-        const m = this.find_newline(t)
+    private update_line(step: number, str: string) {
+        const m = this.find_newline(str)
         if (m) {
             if (step >= 0) {
-                this.line += m.length
+                this.line += m[0]
             } else {
-                this.line -= m.length
+                this.line -= m[0]
             }
-            this.line_index = this.index
-            this.column = t.length - m[m.length-1]
-        } else{
+            this.column = str.length - m[1]
+        } else {
             this.column += step
         }
     }
@@ -151,38 +146,28 @@ export class Input {
         if (clamp) {
             this.last_index = this.index + 0
             const result = this.source.slice(this.index, this.index = this.clamp(step))
-            this.update_line(step)
+            this.update_line(step,result)
             return result
         }
         this.validate_move(step)
         this.last_index = this.index + 0
-        const result = this.source.slice(this.index, this.index += step)
-        this.update_line(step)
+        const result = this.source.slice(this.index, this.index = this.clamp(step))
+        this.update_line(step,result)
         return result
     }
 
-    pan(range: number | [number, number], clamp?: boolean) {
-        let value = [0, 0]
-        if (typeof range == 'number') {
-            if (range > 0) {
-                value[1] = range
-            } else {
-                value[0] = range
-            }
-        } else {
-            value = range
-        }
+    pan(range: [number, number], clamp?: boolean) {
         if (clamp) {
-            return this.source.slice(this.clamp(value[0]), this.clamp(value[1])).replace(/\r/g,'')
+            return this.source.slice(this.clamp(range[0]), this.clamp(range[1])).replace(/\r/g, '')
         }
-        this.validate_move(value[0])
-        this.validate_move(value[1])
-        value[0] += this.index - 1
-        value[1] += this.index - 1
-        return this.source.slice(value[0], value[1])
+        this.validate_move(range[0])
+        this.validate_move(range[1])
+        range[0] += this.index - 1
+        range[1] += this.index - 1
+        return this.source.slice(range[0], range[1])
     }
 
-    pospan(range:[number,number]){
+    pospan(range: [number, number]) {
         return this.source.slice(range[0], range[1])
     }
 

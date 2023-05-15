@@ -31,6 +31,14 @@ export class Token {
     }
 }
 
+export function createToken(name: string, raw: string, span: Span): Token {
+    let t:any = {}
+    t.name = name
+    t.value = raw
+    t.span = span
+    return t
+}
+
 export interface Lexer {
     scheme: Tokenizer[]
     tokens: Token[]
@@ -75,18 +83,15 @@ export class Reader implements Tokenizer {
     constructor(
         public name: string,
         public regex: RegExp
-    ) { }
-    test(lexer: Lexer): boolean {
-        const m = this.regex.exec(lexer.source.to_end())
-        return m ? m.index === 0 : false
-    }
+    ) {
 
-    match(lexer: Lexer) {
-        return this.test(lexer) && this.regex.exec(lexer.source.to_end())
+    }
+    test(lexer: Lexer): boolean {
+        return lexer.source.to_end().search(this.regex) == 0
     }
 
     read(lexer: Lexer): Token {
-        const match = this.match(lexer)
+        const match = this.regex.exec(lexer.source.to_end())
         const source = lexer.source
         const start_line = source.line + 0
         const start_col = source.column + 0
@@ -94,7 +99,7 @@ export class Reader implements Tokenizer {
             const start = source.index
             const end = start + match[0].length + 0
             const value = source.seek(match[0].length)
-            return new Token(this.name, value, {
+            return createToken(this.name, value, {
                 start: {
                     line: start_line,
                     column: start_col
@@ -120,7 +125,6 @@ export class Reader implements Tokenizer {
         this.features[name] = value
         return this
     }
-
 }
 
 export abstract class Pack implements Tokenizer {
@@ -140,7 +144,7 @@ export abstract class Pack implements Tokenizer {
     read(lexer: Lexer): Token {
         throw new Error("Method not implemented.")
     }
-    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
+    convert(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
         throw new Error("Method not implemented.")
     }
     New(): Pack {
@@ -161,6 +165,9 @@ export abstract class Pack implements Tokenizer {
         this.children = this.children.filter(a => !list.includes(a.name))
         return this
     }
+    c_name() {
+        return this.name.replace(/[^\w]/, ".").split(".").map(a => a[0].toUpperCase() + a.slice(1)).join("")
+    }
 }
 
 export class Wrapper extends Pack {
@@ -173,7 +180,7 @@ export class Wrapper extends Pack {
     ) {
         super(name)
     }
-    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
+    convert(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
         stack.push(this)
         const backward: number[] = []
         const w = inst.push(new POP())
@@ -192,7 +199,7 @@ export class Wrapper extends Pack {
                 if (calling) {
                     call.set(inst.push(new STACK(tnz.name, 0, 0, 0)), tnz)
                 } else {
-                    (tnz as Pack).compile(stack, inst, call, nep)
+                    (tnz as Pack).convert(stack, inst, call, nep)
                 }
             }
         }
@@ -235,7 +242,7 @@ export class IFWrapper extends Pack {
     ) {
         super(name)
     }
-    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
+    convert(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
         stack.push(this)
         const nep_enable = this.features["stop"] == true
         if (nep_enable) {
@@ -257,7 +264,7 @@ export class IFWrapper extends Pack {
                 if (calling) {
                     call.set(inst.push(new STACK(tnz.name, 0, 0, 0)), tnz)
                 } else {
-                    (tnz as Pack).compile(stack, inst, call, nep)
+                    (tnz as Pack).convert(stack, inst, call, nep)
                 }
             }
         }
@@ -299,7 +306,7 @@ export class WrapperSerial extends Pack {
     ) {
         super(name)
     }
-    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
+    convert(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
         stack.push(this)
         inst.push(new SET("B", 0))
         inst.push(new SIT(0))
@@ -319,7 +326,7 @@ export class WrapperSerial extends Pack {
                 if (calling) {
                     call.set(inst.push(new STACK(tnz.name, 0, 0, 0)), tnz)
                 } else {
-                    (tnz as Pack).compile(stack, inst, call, nep)
+                    (tnz as Pack).convert(stack, inst, call, nep)
                 }
             }
         }
@@ -359,7 +366,7 @@ export class Group extends Pack {
     ) {
         super(name)
     }
-    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
+    convert(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
         stack.push(this)
         const w = inst.push(new POP())
         for (let i = this.children.length - 1; i >= 0; i--) {
@@ -374,7 +381,7 @@ export class Group extends Pack {
                 if (calling) {
                     call.set(inst.push(new STACK(tnz.name, 0, 0, 0)), tnz)
                 } else {
-                    (tnz as Pack).compile(stack, inst, call, nep)
+                    (tnz as Pack).convert(stack, inst, call, nep)
                 }
             }
         }
@@ -413,7 +420,7 @@ export class GroupSerial extends Pack {
     ) {
         super(name)
     }
-    compile(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
+    convert(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
         stack.push(this)
         inst.push(new SET("B", 0))
         inst.push(new SIT(0))
@@ -431,7 +438,7 @@ export class GroupSerial extends Pack {
                 if (calling) {
                     call.set(inst.push(new STACK(tnz.name, 0, 0, 0)), tnz)
                 } else {
-                    (tnz as Pack).compile(stack, inst, call, nep)
+                    (tnz as Pack).convert(stack, inst, call, nep)
                 }
             }
         }
