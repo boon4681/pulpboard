@@ -7,9 +7,9 @@ import { box } from "./test";
 import { createToken, Group, IFWrapper, is_pack, Lexer, Pack, Reader, Token, Tokenizer, TokenizerType, Wrapper, WrapperSerial } from "./tokenizer";
 import { appendFileSync, read, readFileSync, writeFileSync } from "fs";
 
-function print(gg: Stack<Instruction>, out: boolean = false) {
+function print(gg: Instruction[], out: boolean = false) {
     let k = 0;
-    return [...gg.array].reverse().map((a, i) => {
+    return [...gg].reverse().map((a, i) => {
         if (a.type == InstructionType.PUSH) k++
         if (a.type == InstructionType.POP) k--
         if (out) console.log(
@@ -22,10 +22,10 @@ function print(gg: Stack<Instruction>, out: boolean = false) {
 
 
 export class LexerBase implements Lexer {
-    scheme: Tokenizer[] = [];
     tokens: Token[] = [];
     index: number = 0;
     memo: Memory = new Memory()
+    debug: boolean = false
     constructor(
         scheme: Pack,
         public source: Input,
@@ -34,9 +34,23 @@ export class LexerBase implements Lexer {
         this.memo.inst.push(new END())
         this.memo.inst.push(...scheme.convert([], [], new Map<number, Tokenizer>(), new Map<number, number>()))
         // console.log(chalk.red("############\nINDEX.ts file\n############"))
-        // writeFileSync("debug3.txt", print(this.memo.inst).join("\n"))
+        writeFileSync(`E:/_Project/nodejs/cardboard-legacy/cardboard/test/${this.source.name.split("\/").slice(-1)[0]}.txt`, print(this.memo.inst).join("\n"))
+        // console.log(print(this.memo.inst).join("\n"))
+        // print(this.memo.inst,true)
         // return
         // console.log(this.tokens)
+    }
+    set(scheme: Pack) {
+        this.memo.inst = []
+        this.memo.inst.push(new END())
+        this.memo.inst.push(...scheme.convert([], [], new Map<number, Tokenizer>(), new Map<number, number>()))
+        writeFileSync(`E:/_Project/nodejs/cardboard-legacy/cardboard/test/${this.source.name.split("\/").slice(-1)[0]}.txt`, print(this.memo.inst).join("\n"))
+    }
+    next() {
+        return this.tokens[++this.index]
+    }
+    get(i: number = 0) {
+        return this.tokens[this.index + i]
     }
     private merger(merge: number[], pack: Tokenizer) {
         const removed = this.tokens.splice(merge.pop()!)
@@ -188,7 +202,7 @@ export class LexerBase implements Lexer {
         //         if (pack.features.merge) {
         //             this.merger(merge, pack)
         //         }
-    
+
         //         this.memo.stack.pop()
         //         exec.pointer += inst.mov
         //         this.memo.temp = 0
@@ -201,9 +215,11 @@ export class LexerBase implements Lexer {
             // console.log((INST.size - exec.start) - exec.size + exec.pointer)
             // throw new Error
             if (inst.type == InstructionType.END) break
-            // const log = chalk.yellow((exec.pointer + 1 + 10000).toString().slice(1)) + " " + new Array(this.memo.stack.size + (inst.type == InstructionType.POP ? -1 : 0)).fill('    ').join('') + chalk.red(inst.constructor.name + ' ' + inst.str())
+            if(this.debug){
+                const log = chalk.yellow((exec.pointer + 1 + 10000).toString().slice(1)) + " " + new Array(this.memo.stack.size + (inst.type == InstructionType.POP ? -1 : 0)).fill('    ').join('') + chalk.red(inst.constructor.name + ' ' + inst.str())
+                console.log(log)
+            }
             // appendFileSync("./test/debug.txt", log.replace(/\u001b[^m]*?m/g, "") + "\n")
-            // console.log(log)
             // console.log([this.memo.stack.get()].map((a: any) => a ? [a.name, a.features, a.index, a.children.length] : a))
             // console.log(this.memo.global)
             // console.log(new Array(space + (inst.type == InstructionType.POP ? -1 : 0)).fill('    ').join('') + chalk.red(inst.constructor.name + ' ' + inst.str()))
@@ -274,14 +290,15 @@ export class LexerBase implements Lexer {
                         if (pack.children.length != pack.index) {
                             // console.log(pack)
                             // appendFileSync("./test/debug.txt", 'VERY DEBUG' + this.memo.temp + JSON.stringify([...this.memo.global.entries()]) + '\n')
-                            const have_parent = this.memo.stack.size
+                            const have_parent = !!this.memo.stack.size
                             const parent = this.memo.stack.get(-1)
                             const error = pack.children[pack.index]
+                            // console.log(parent)
                             if (this.memo.B == 1 && pack.index == 0) {
                                 this.memo.temp = 1
-                            } else if (pack.index == 0 && pack.features.nullable) {
-                                this.memo.temp = 1
                             } else if (pack.index == 0 && have_parent) {
+                                this.memo.temp = 1
+                            } else if (pack.index == 1 && pack.children[0].type == TokenizerType.IFWrapper) {
                                 this.memo.temp = 1
                             } else if (pack.type == TokenizerType.Group || pack.type == TokenizerType.GroupSerial || pack.type == TokenizerType.WrapperSerial) {
                                 if (this.memo.B == 1) this.memo.temp = 0
@@ -294,14 +311,13 @@ export class LexerBase implements Lexer {
                                     throw new SyntaxError('2', this.source, error)
                                 }
                                 if (pack.index > 0 && parent.type != TokenizerType.Group && (pack.type == TokenizerType.Wrapper || pack.type == TokenizerType.IFWrapper)) {
-                                    throw new SyntaxError('2', this.source, error)
+                                    throw new SyntaxError('3', this.source, error)
                                 }
                             } else {
                                 console.log(this.tokens.map(a => a.value))
                                 throw new SyntaxError('1', this.source, error)
                             }
                         }
-                        // console.log(pack.index, this.memo.temp)
                         // console.log(pack.index,this.memo.temp)
                         if (pack.features.merge) {
                             this.merger(merge, pack)
@@ -334,10 +350,12 @@ export class LexerBase implements Lexer {
                     }
                     break
                 case InstructionType.TEST:
-                    if (inst.tester.test(this)) {
-                        this.memo.set_address(inst.variable, 1)
-                    } else {
-                        this.memo.set_address(inst.variable, 0)
+                    {
+                        if (inst.tester.test(this)) {
+                            this.memo.set_address(inst.variable, 1)
+                        } else {
+                            this.memo.set_address(inst.variable, 0)
+                        }
                     }
                     break
                 case InstructionType.SET:
@@ -377,16 +395,19 @@ export class LexerBase implements Lexer {
         }
     }
 }
+
+export { Input } from './input'
+export { Wrapper, Reader, GroupSerial, Group, IFWrapper, WrapperSerial, Pack, Tokenizer, Lexer, Token, Span, is_pack } from './tokenizer'
 // const input = new Input("", new Array(2000).fill("").map((a, i) => i < 1000 ? '(' : ')').join(""))
-const input = new Input("./test/test.box", readFileSync("./test/test.box", {
-    encoding: "utf8"
-}))
-const lexer = new LexerBase(box, input)
-function main() {
-    const t0 = performance.now();
-    lexer.run()
-    const t1 = performance.now();
-    console.log(lexer.tokens)
-    console.log(`${t1 - t0} milliseconds.`);
-}
-main()
+// const input = new Input("./test/test.box", readFileSync("./test/test.box", {
+//     encoding: "utf8"
+// }))
+// const lexer = new LexerBase(box, input)
+// function main() {
+//     const t0 = performance.now();
+//     lexer.run()
+//     const t1 = performance.now();
+//     console.log(lexer.tokens)
+//     console.log(`${t1 - t0} milliseconds.`);
+// }
+// main()

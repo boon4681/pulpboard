@@ -88,7 +88,7 @@ export class Input {
     }
 
     private find_newline(str: string) {
-        let a = -1
+        let a = 0
         let l = 0
         for (let i = 0; i < str.length; i++) {
             if (str.charCodeAt(i) == 10) {
@@ -96,7 +96,7 @@ export class Input {
                 l = i
             }
         }
-        return a > -1 ? [a, l] : undefined
+        return a > 0 ? [a, l] : undefined
     }
 
     private update_line(step: number, str: string) {

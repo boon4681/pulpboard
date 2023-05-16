@@ -32,7 +32,7 @@ export class Token {
 }
 
 export function createToken(name: string, raw: string, span: Span): Token {
-    let t:any = {}
+    let t: any = {}
     t.name = name
     t.value = raw
     t.span = span
@@ -40,10 +40,10 @@ export function createToken(name: string, raw: string, span: Span): Token {
 }
 
 export interface Lexer {
-    scheme: Tokenizer[]
     tokens: Token[]
     source: Input
     index: number
+    debug: boolean
 }
 
 export enum TokenizerType {
@@ -309,6 +309,7 @@ export class WrapperSerial extends Pack {
     convert(stack: Tokenizer[], inst: Instruction[], call: Map<number, Tokenizer>, nep: Map<number, number>): Instruction[] {
         stack.push(this)
         inst.push(new SET("B", 0))
+        inst.push(new CMP("B", 1))
         inst.push(new SIT(0))
         inst.push(new SET("B", 1))
         const w = inst.push(new POP())
